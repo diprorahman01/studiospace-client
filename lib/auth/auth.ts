@@ -1,0 +1,1 @@
+// Better Auth server configuration.

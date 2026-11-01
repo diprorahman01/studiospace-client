@@ -1,26 +1,14 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+:root{color-scheme:light}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0}
+.section-wrap{max-width:1280px;margin:0 auto;padding:68px 20px}
+.section-title{font-size:clamp(1.8rem,3vw,2.5rem);font-weight:850;letter-spacing:-.035em;line-height:1.2}
+.section-kicker{margin-bottom:12px;color:#6d28d9;font-size:12px;font-weight:850;letter-spacing:.13em}
+.section-subtitle{margin-top:12px;color:#64748b;font-size:15px}
+.hero-swiper .swiper-button-prev,.hero-swiper .swiper-button-next{color:white;width:32px;height:32px}
+.hero-swiper .swiper-button-prev:after,.hero-swiper .swiper-button-next:after{font-size:19px;font-weight:800}
+.hero-swiper .swiper-pagination-bullet{background:#fff;opacity:.6}
+.hero-swiper .swiper-pagination-bullet-active{background:#a78bfa;opacity:1}
+@media(min-width:768px){.section-wrap{padding:82px 32px}}

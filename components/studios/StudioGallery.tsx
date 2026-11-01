@@ -1,0 +1,1 @@
+// Studio detail image gallery.
