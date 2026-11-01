@@ -1,50 +1,84 @@
 
-import type { Studio, StudiosResponse } from "@/types/studio";
+import "server-only";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+import type {
+  Studio,
+  StudiosResponse,
+} from "@/types/studio";
+
+// Server-side requests should use the actual
+// Express backend, not the Vercel frontend domain.
+const API_URL = (
+  process.env.API_SERVER_URL ||
+  "http://localhost:5000"
+).replace(/\/$/, "");
 
 interface StudioDetailsResponse {
   success: boolean;
   data: Studio;
 }
 
-async function fetchStudios(endpoint: string): Promise<Studio[]> {
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    next: { revalidate: 60 },
-  });
+async function fetchStudios(
+  endpoint: string
+): Promise<Studio[]> {
+  const response = await fetch(
+    `${API_URL}${endpoint}`,
+    {
+      next: {
+        revalidate: 60,
+      },
+    }
+  );
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch studios: ${response.status}`);
+    throw new Error(
+      `Failed to fetch studios: ${response.status}`
+    );
   }
 
-  const result: StudiosResponse = await response.json();
+  const result: StudiosResponse =
+    await response.json();
 
-  if (!result.success || !Array.isArray(result.data)) {
-    throw new Error("Invalid studios API response");
+  if (
+    !result.success ||
+    !Array.isArray(result.data)
+  ) {
+    throw new Error(
+      "Invalid studios API response"
+    );
   }
 
   return result.data;
 }
 
-// Get six featured studios
-export async function getFeaturedStudios(): Promise<Studio[]> {
-  return fetchStudios("/api/studios/featured");
+// Fetch featured studios.
+export async function getFeaturedStudios(): Promise<
+  Studio[]
+> {
+  return fetchStudios(
+    "/api/studios/featured"
+  );
 }
 
-// Get all studios
-export async function getAllStudios(): Promise<Studio[]> {
-  return fetchStudios("/api/studios");
+// Fetch all studios.
+export async function getAllStudios(): Promise<
+  Studio[]
+> {
+  return fetchStudios(
+    "/api/studios"
+  );
 }
 
-// Get a single studio by MongoDB ID
+// Fetch studio details.
 export async function getStudioById(
   id: string
 ): Promise<Studio | null> {
   const response = await fetch(
     `${API_URL}/api/studios/${encodeURIComponent(id)}`,
     {
-      next: { revalidate: 60 },
+      next: {
+        revalidate: 60,
+      },
     }
   );
 
@@ -53,13 +87,21 @@ export async function getStudioById(
   }
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch studio: ${response.status}`);
+    throw new Error(
+      `Failed to fetch studio: ${response.status}`
+    );
   }
 
-  const result: StudioDetailsResponse = await response.json();
+  const result: StudioDetailsResponse =
+    await response.json();
 
-  if (!result.success || !result.data) {
-    throw new Error("Invalid studio details response");
+  if (
+    !result.success ||
+    !result.data
+  ) {
+    throw new Error(
+      "Invalid studio details response"
+    );
   }
 
   return result.data;
