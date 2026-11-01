@@ -6,14 +6,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Aperture,
-  Eye,
-  EyeOff,
-  LoaderCircle,
-  Mail,
-  LockKeyhole,
-  UserRound,
   ArrowRight,
   CheckCircle2,
+  Eye,
+  EyeOff,
+  Image as ImageIcon,
+  LoaderCircle,
+  LockKeyhole,
+  Mail,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
@@ -23,18 +24,22 @@ export default function RegisterPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] =
     useState(false);
+
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function handleRegister(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!name.trim() || !email.trim() || !password) {
-      toast.error("Please fill in all required fields.");
+      toast.error("Please complete all required fields.");
       return;
     }
 
@@ -48,9 +53,37 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!/[A-Z]/.test(password)) {
+      toast.error("Password must contain an uppercase letter.");
+      return;
+    }
+
+    if (!/[a-z]/.test(password)) {
+      toast.error("Password must contain a lowercase letter.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       toast.error("Passwords do not match.");
       return;
+    }
+
+    const image = photoUrl.trim();
+
+    if (image) {
+      try {
+        const url = new URL(image);
+
+        if (
+          url.protocol !== "https:" &&
+          url.protocol !== "http:"
+        ) {
+          throw new Error("Invalid protocol");
+        }
+      } catch {
+        toast.error("Please enter a valid Photo URL.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -60,6 +93,7 @@ export default function RegisterPage() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
+        ...(image ? { image } : {}),
       });
 
       if (error) {
@@ -67,8 +101,10 @@ export default function RegisterPage() {
         return;
       }
 
-      toast.success("Account created successfully!");
-      router.push("/");
+      toast.success("Account created! Please sign in.");
+
+      // Required assignment redirect.
+      router.push("/login");
       router.refresh();
     } catch (error) {
       console.error("Registration error:", error);
@@ -78,10 +114,34 @@ export default function RegisterPage() {
     }
   }
 
+  async function handleGoogleRegister() {
+    if (loading || googleLoading) return;
+
+    setGoogleLoading(true);
+
+    try {
+      const { error } = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/",
+        errorCallbackURL: "/register",
+      });
+
+      if (error) {
+        toast.error(
+          error.message || "Could not connect to Google."
+        );
+        setGoogleLoading(false);
+      }
+    } catch (error) {
+      console.error("Google registration error:", error);
+      toast.error("Google registration failed.");
+      setGoogleLoading(false);
+    }
+  }
+
   return (
     <main className="flex min-h-[85vh] items-center justify-center bg-[#f8f7fd] px-4 py-12">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-violet-100 bg-white shadow-xl lg:grid-cols-2">
-        {/* Branding */}
         <div className="relative hidden flex-col justify-between overflow-hidden bg-[#17112e] p-12 text-white lg:flex">
           <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-violet-600/30 blur-3xl" />
           <div className="absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-fuchsia-600/20 blur-3xl" />
@@ -104,9 +164,8 @@ export default function RegisterPage() {
             </h2>
 
             <p className="mt-6 max-w-sm leading-8 text-slate-300">
-              Join StudioSpace to discover creative studios,
-              manage your bookings, and share inspiring spaces
-              with other creators.
+              Join StudioSpace to discover studios, manage
+              bookings, and share inspiring spaces with creators.
             </p>
 
             <div className="mt-9 space-y-4">
@@ -133,7 +192,6 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        {/* Form */}
         <div className="px-6 py-10 sm:px-10 lg:px-12 lg:py-12">
           <div className="mb-8">
             <h1 className="text-3xl font-extrabold text-slate-950">
@@ -145,7 +203,6 @@ export default function RegisterPage() {
           </div>
 
           <form onSubmit={handleRegister} className="space-y-5">
-            {/* Name */}
             <div>
               <label
                 htmlFor="register-name"
@@ -167,13 +224,12 @@ export default function RegisterPage() {
                   autoComplete="name"
                   minLength={2}
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 outline-none focus:border-violet-600"
                 />
               </div>
             </div>
 
-            {/* Email */}
             <div>
               <label
                 htmlFor="register-email"
@@ -194,13 +250,36 @@ export default function RegisterPage() {
                   placeholder="Enter your email"
                   autoComplete="email"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 outline-none focus:border-violet-600"
                 />
               </div>
             </div>
 
-            {/* Password */}
+            <div>
+              <label
+                htmlFor="register-photo"
+                className="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                Photo URL (Optional)
+              </label>
+              <div className="relative">
+                <ImageIcon
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  id="register-photo"
+                  type="url"
+                  value={photoUrl}
+                  onChange={(e) => setPhotoUrl(e.target.value)}
+                  placeholder="https://example.com/photo.jpg"
+                  disabled={loading || googleLoading}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 outline-none focus:border-violet-600"
+                />
+              </div>
+            </div>
+
             <div>
               <label
                 htmlFor="register-password"
@@ -223,7 +302,7 @@ export default function RegisterPage() {
                   minLength={8}
                   maxLength={128}
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-12 text-sm text-slate-900 outline-none focus:border-violet-600"
                 />
                 <button
@@ -241,9 +320,12 @@ export default function RegisterPage() {
                   )}
                 </button>
               </div>
+              <p className="mt-2 text-xs text-slate-500">
+                8–128 characters, including an uppercase and
+                a lowercase letter.
+              </p>
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label
                 htmlFor="register-confirm-password"
@@ -258,13 +340,17 @@ export default function RegisterPage() {
                 />
                 <input
                   id="register-confirm-password"
-                  type={showConfirmPassword ? "text" : "password"}
+                  type={
+                    showConfirmPassword ? "text" : "password"
+                  }
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e) =>
+                    setConfirmPassword(e.target.value)
+                  }
                   placeholder="Confirm your password"
                   autoComplete="new-password"
                   required
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-12 text-sm text-slate-900 outline-none focus:border-violet-600"
                 />
                 <button
@@ -288,11 +374,10 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Register */}
             <button
               type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:opacity-60"
+              disabled={loading || googleLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-60"
             >
               {loading ? (
                 <>
@@ -310,6 +395,38 @@ export default function RegisterPage() {
               )}
             </button>
           </form>
+
+          <div className="my-6 flex items-center gap-4">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">
+              OR SIGN UP WITH
+            </span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleGoogleRegister}
+            disabled={loading || googleLoading}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {googleLoading ? (
+              <LoaderCircle
+                size={19}
+                className="animate-spin"
+              />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="text-xl font-bold text-[#4285F4]"
+              >
+                G
+              </span>
+            )}
+            {googleLoading
+              ? "Connecting to Google..."
+              : "Continue with Google"}
+          </button>
 
           <p className="mt-7 text-center text-sm text-slate-600">
             Already have an account?{" "}

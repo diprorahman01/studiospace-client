@@ -6,25 +6,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  ArrowRight,
   Building2,
-  Camera,
-  CheckCircle2,
-  ImagePlus,
   LoaderCircle,
-  MapPin,
   Plus,
-  ShieldCheck,
   Trash2,
-  Users,
-  Wallet,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
+import StudioImageUploader from "@/components/studios/StudioImageUploader";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000";
 
 const CATEGORIES = [
   "Photo Studio",
@@ -35,7 +29,7 @@ const CATEGORIES = [
   "Art Workshop",
 ];
 
-const COMMON_AMENITIES = [
+const AMENITY_OPTIONS = [
   "Wi-Fi",
   "Air Conditioning",
   "Free Parking",
@@ -50,70 +44,89 @@ const COMMON_AMENITIES = [
   "Power Backup",
 ];
 
-type CreateStudioResponse = {
+type StudioResponse = {
   success: boolean;
   message?: string;
-  data?: {
-    _id: string;
-  };
+  data?: { _id: string };
 };
 
-function isValidImageUrl(value: string) {
-  const url = value.trim();
-
-  if (!url) return false;
+function validImageUrl(value: string) {
+  if (value.length > 2048 || !value.trim()) return false;
 
   if (
-    url.startsWith("/") &&
-    !url.startsWith("//") &&
-    !url.includes("..") &&
-    !url.includes("\\")
+    value.startsWith("/") &&
+    !value.startsWith("//") &&
+    !value.includes("..") &&
+    !value.includes("\\")
   ) {
     return true;
   }
 
   try {
-    const parsed = new URL(url);
-    return (
-      ["http:", "https:"].includes(parsed.protocol) &&
-      Boolean(parsed.hostname)
-    );
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol);
   } catch {
     return false;
   }
 }
 
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600";
+
 export default function AddStudioPage() {
   const router = useRouter();
 
-  const { data: session, isPending: checkingSession } =
-    authClient.useSession();
+  const {
+    data: session,
+    isPending: checkingSession,
+  } = authClient.useSession();
+
+  const user = session?.user;
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [location, setLocation] = useState("");
   const [overview, setOverview] = useState("");
   const [hourlyRate, setHourlyRate] = useState("");
-  const [securityDeposit, setSecurityDeposit] = useState("0");
+  const [securityDeposit, setSecurityDeposit] =
+    useState("0");
   const [maxCapacity, setMaxCapacity] = useState("1");
-
   const [image, setImage] = useState("");
-  const [additionalImages, setAdditionalImages] = useState<string[]>([]);
+  const [images, setImages] = useState<string[]>([]);
   const [newImage, setNewImage] = useState("");
-
   const [amenities, setAmenities] = useState<string[]>([]);
   const [customAmenity, setCustomAmenity] = useState("");
-
   const [submitting, setSubmitting] = useState(false);
-  const [previewFailed, setPreviewFailed] = useState(false);
 
-  const user = session?.user;
+  function addImage(value: string) {
+    const trimmed = value.trim();
+
+    if (!validImageUrl(trimmed)) {
+      toast.error("Enter a valid image URL.");
+      return;
+    }
+
+    if (trimmed === image || images.includes(trimmed)) {
+      toast.error("This image has already been added.");
+      return;
+    }
+
+    if (images.length >= 9) {
+      toast.error("Maximum 10 images per studio.");
+      return;
+    }
+
+    setImages((current) => [...current, trimmed]);
+    setNewImage("");
+  }
 
   function toggleAmenity(value: string) {
     setAmenities((current) =>
       current.includes(value)
         ? current.filter((item) => item !== value)
-        : [...current, value]
+        : current.length < 30
+          ? [...current, value]
+          : current
     );
   }
 
@@ -121,19 +134,21 @@ export default function AddStudioPage() {
     const value = customAmenity.trim();
 
     if (value.length < 2 || value.length > 80) {
-      toast.error("Amenity must contain 2–80 characters.");
+      toast.error("Amenity must be 2–80 characters.");
       return;
     }
 
-    if (amenities.some(
-      (item) => item.toLowerCase() === value.toLowerCase()
-    )) {
-      toast.error("This amenity has already been added.");
+    if (
+      amenities.some(
+        (item) => item.toLowerCase() === value.toLowerCase()
+      )
+    ) {
+      toast.error("Amenity already added.");
       return;
     }
 
     if (amenities.length >= 30) {
-      toast.error("You can add up to 30 amenities.");
+      toast.error("Maximum 30 amenities.");
       return;
     }
 
@@ -141,111 +156,80 @@ export default function AddStudioPage() {
     setCustomAmenity("");
   }
 
-  function addImage() {
-    const value = newImage.trim();
-
-    if (!isValidImageUrl(value) || value.length > 2048) {
-      toast.error("Enter a valid image URL.");
-      return;
-    }
-
-    if (additionalImages.includes(value) || image.trim() === value) {
-      toast.error("This image has already been added.");
-      return;
-    }
-
-    if (additionalImages.length >= 9) {
-      toast.error("You can use up to 10 images including the main image.");
-      return;
-    }
-
-    setAdditionalImages((current) => [...current, value]);
-    setNewImage("");
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (submitting) return;
+    if (submitting || !user) return;
 
-    if (checkingSession) {
-      toast.info("Checking your account...");
-      return;
-    }
-
-    if (!user) {
-      toast.error("Please log in to list a studio.");
-      router.push("/login");
-      return;
-    }
-
-    const studioTitle = title.trim();
-    const studioLocation = location.trim();
-    const studioOverview = overview.trim();
+    const name = title.trim();
+    const address = location.trim();
+    const description = overview.trim();
     const mainImage = image.trim();
 
     const rate = Number(hourlyRate);
     const deposit = Number(securityDeposit);
     const capacity = Number(maxCapacity);
 
-    if (studioTitle.length < 5 || studioTitle.length > 120) {
+    if (name.length < 5 || name.length > 120) {
       toast.error("Studio name must be 5–120 characters.");
       return;
     }
 
     if (!CATEGORIES.includes(category)) {
-      toast.error("Select a studio category.");
+      toast.error("Choose a valid category.");
       return;
     }
 
-    if (
-      studioLocation.length < 3 ||
-      studioLocation.length > 150
-    ) {
+    if (address.length < 3 || address.length > 150) {
       toast.error("Location must be 3–150 characters.");
       return;
     }
 
     if (
-      studioOverview.length < 30 ||
-      studioOverview.length > 3000
+      description.length < 30 ||
+      description.length > 3000
     ) {
       toast.error("Description must be 30–3000 characters.");
       return;
     }
 
-    if (!hourlyRate.trim() ||
-        !Number.isFinite(rate) ||
-        rate <= 0 ||
-        rate > 100000) {
+    if (
+      !hourlyRate.trim() ||
+      !Number.isFinite(rate) ||
+      rate <= 0 ||
+      rate > 100000
+    ) {
       toast.error("Enter a valid hourly rate.");
       return;
     }
 
-    if (!securityDeposit.trim() ||
-        !Number.isFinite(deposit) ||
-        deposit < 0 ||
-        deposit > 1000000) {
+    if (
+      !securityDeposit.trim() ||
+      !Number.isFinite(deposit) ||
+      deposit < 0 ||
+      deposit > 1000000
+    ) {
       toast.error("Enter a valid security deposit.");
       return;
     }
 
-    if (!Number.isInteger(capacity) ||
-        capacity < 1 ||
-        capacity > 500) {
+    if (
+      !maxCapacity.trim() ||
+      !Number.isInteger(capacity) ||
+      capacity < 1 ||
+      capacity > 500
+    ) {
       toast.error("Capacity must be between 1 and 500.");
       return;
     }
 
-    if (!isValidImageUrl(mainImage) ||
-        mainImage.length > 2048) {
-      toast.error("Enter a valid main image URL.");
+    if (
+      !validImageUrl(mainImage) ||
+      images.some((url) => !validImageUrl(url))
+    ) {
+      toast.error("Provide valid studio image URLs.");
       return;
     }
-
-    const images = [mainImage, ...additionalImages].filter(
-      (value, index, array) => array.indexOf(value) === index
-    );
 
     setSubmitting(true);
 
@@ -258,179 +242,120 @@ export default function AddStudioPage() {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          title: studioTitle,
+          title: name,
           category,
-          location: studioLocation,
-          overview: studioOverview,
+          location: address,
+          overview: description,
           hourlyRate: rate,
           securityDeposit: deposit,
           maxCapacity: capacity,
           image: mainImage,
-          images,
+          images: [...new Set([mainImage, ...images])],
           amenities,
         }),
       });
 
-      const result: CreateStudioResponse = await response.json();
+      const result: StudioResponse = await response.json();
 
       if (response.status === 401) {
-        toast.error("Your session expired. Please log in again.");
+        toast.error("Please log in again.");
         router.push("/login");
         return;
       }
 
       if (!response.ok || !result.success) {
-        toast.error(
-          result.message || "Unable to create studio."
-        );
+        toast.error(result.message || "Could not create studio.");
         return;
       }
 
-      if (!result.data?._id) {
-        toast.error("Studio created, but its ID was not returned.");
-        return;
-      }
-
-      toast.success("Your studio was listed successfully!");
-
-      router.push(`/studios/${result.data._id}`);
+      toast.success("Studio created successfully!");
+      router.push("/my-listings");
       router.refresh();
     } catch (error) {
       console.error("Create studio error:", error);
-
-      toast.error(
-        "Could not connect to the server. Please try again."
-      );
+      toast.error("Could not connect to the server.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (checkingSession) {
+  if (checkingSession || !user) {
     return (
-      <main className="flex min-h-[70vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
+      <main className="flex min-h-[70vh] flex-col items-center justify-center gap-3">
+        {checkingSession ? (
           <LoaderCircle
             size={34}
             className="animate-spin text-violet-700"
           />
-          <p className="text-sm text-slate-500">
-            Checking your account...
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  if (!user) {
-    return (
-      <main className="flex min-h-[70vh] items-center justify-center bg-[#f8f7fd] px-5">
-        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <ShieldCheck
-            size={48}
-            className="mx-auto mb-5 text-violet-700"
-          />
-          <h1 className="text-2xl font-bold text-slate-950">
-            Login Required
-          </h1>
-          <p className="mt-3 text-sm leading-7 text-slate-500">
-            Sign in to your StudioSpace account before
-            listing a creative studio.
-          </p>
-          <Link
-            href="/login"
-            className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-800"
-          >
-            Go to Login
-            <ArrowRight size={17} />
-          </Link>
-        </div>
+        ) : (
+          <>
+            <p className="text-lg font-bold">Login Required</p>
+            <Link
+              href="/login"
+              className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
+            >
+              Go to Login
+            </Link>
+          </>
+        )}
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f7fd]">
-      {/* Heading */}
-      <section className="border-b border-violet-100 bg-white">
-        <div className="mx-auto max-w-7xl px-5 py-12">
-          <Link
-            href="/dashboard"
-            className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-violet-700"
-          >
-            <ArrowLeft size={16} />
-            Back to Dashboard
-          </Link>
+    <main className="min-h-[85vh] bg-[#f8f7fd] px-5 py-10">
+      <div className="mx-auto max-w-5xl">
+        <Link
+          href="/dashboard"
+          className="mb-5 inline-flex items-center gap-2 text-sm text-violet-700"
+        >
+          <ArrowLeft size={17} />
+          Back to Dashboard
+        </Link>
 
-          <div className="flex items-start gap-4">
-            <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 sm:flex">
-              <Building2 size={28} />
-            </div>
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-violet-700">
-                HOST YOUR SPACE
-              </p>
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
-                Add a New Studio
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-                Share your creative workspace with photographers,
-                filmmakers, musicians, and other creators.
-              </p>
-            </div>
-          </div>
+        <div className="mb-8">
+          <p className="text-xs font-bold uppercase tracking-wider text-violet-700">
+            HOST YOUR SPACE
+          </p>
+          <h1 className="mt-2 text-3xl font-extrabold text-slate-950">
+            Add a New Studio
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Publish your workspace for other creators to discover.
+          </p>
         </div>
-      </section>
 
-      <form
-        onSubmit={handleSubmit}
-        className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-5 py-10 lg:grid-cols-[minmax(0,1fr)_340px]"
-      >
-        {/* Main fields */}
-        <div className="space-y-7">
-          {/* Basic information */}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-7"
+        >
           <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-6 flex items-center gap-3">
-              <Building2 className="text-violet-700" size={23} />
-              <h2 className="text-xl font-bold text-slate-950">
-                Studio Information
-              </h2>
-            </div>
+            <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-950">
+              <Building2 size={22} className="text-violet-700" />
+              Studio Information
+            </h2>
 
-            <div className="space-y-5">
-              <div>
-                <label
-                  htmlFor="studio-title"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Studio Name *
-                </label>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block text-sm font-semibold text-slate-700 sm:col-span-2">
+                Studio Name *
                 <input
-                  id="studio-title"
                   value={title}
-                  onChange={(event) => setTitle(event.target.value)}
+                  onChange={(e) => setTitle(e.target.value)}
                   minLength={5}
                   maxLength={120}
                   required
                   placeholder="e.g. Violet Lens Photography Studio"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                  className={`mt-2 ${inputClass}`}
                 />
-              </div>
+              </label>
 
-              <div>
-                <label
-                  htmlFor="studio-category"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Category *
-                </label>
+              <label className="block text-sm font-semibold text-slate-700">
+                Category *
                 <select
-                  id="studio-category"
                   value={category}
-                  onChange={(event) => setCategory(event.target.value)}
+                  onChange={(e) => setCategory(e.target.value)}
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                  className={`mt-2 ${inputClass}`}
                 >
                   <option value="">Select a category</option>
                   {CATEGORIES.map((item) => (
@@ -439,369 +364,275 @@ export default function AddStudioPage() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
 
-              <div>
-                <label
-                  htmlFor="studio-location"
-                  className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"
-                >
-                  <MapPin size={16} className="text-violet-700" />
-                  Location *
-                </label>
+              <label className="block text-sm font-semibold text-slate-700">
+                Location *
                 <input
-                  id="studio-location"
                   value={location}
-                  onChange={(event) => setLocation(event.target.value)}
-                  minLength={3}
+                  onChange={(e) => setLocation(e.target.value)}
+                  required
                   maxLength={150}
-                  required
-                  placeholder="e.g. Dhanmondi, Dhaka"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                  placeholder="e.g. Gulshan, Dhaka"
+                  className={`mt-2 ${inputClass}`}
                 />
-              </div>
+              </label>
 
-              <div>
-                <label
-                  htmlFor="studio-overview"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Studio Description *
-                </label>
-                <textarea
-                  id="studio-overview"
-                  value={overview}
-                  onChange={(event) => setOverview(event.target.value)}
-                  minLength={30}
-                  maxLength={3000}
-                  rows={6}
-                  required
-                  placeholder="Describe your workspace, equipment, facilities, and what makes your studio special..."
-                  className="w-full resize-y rounded-xl border border-slate-200 px-4 py-3 text-sm leading-7 text-slate-900 outline-none focus:border-violet-600"
-                />
-                <p className="mt-1 text-right text-xs text-slate-400">
-                  {overview.length}/3000
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Pricing and capacity */}
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-6 flex items-center gap-3">
-              <Wallet className="text-violet-700" size={23} />
-              <h2 className="text-xl font-bold text-slate-950">
-                Pricing & Capacity
-              </h2>
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="studio-rate"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Hourly Rate (BDT) *
-                </label>
+              <label className="block text-sm font-semibold text-slate-700">
+                Hourly Rate (BDT) *
                 <input
-                  id="studio-rate"
                   type="number"
-                  min="0.01"
+                  min="1"
                   max="100000"
                   step="0.01"
                   value={hourlyRate}
-                  onChange={(event) => setHourlyRate(event.target.value)}
+                  onChange={(e) => setHourlyRate(e.target.value)}
                   required
-                  placeholder="1500"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                  className={`mt-2 ${inputClass}`}
                 />
-              </div>
+              </label>
 
-              <div>
-                <label
-                  htmlFor="studio-deposit"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Security Deposit (BDT) *
-                </label>
+              <label className="block text-sm font-semibold text-slate-700">
+                Security Deposit (BDT) *
                 <input
-                  id="studio-deposit"
                   type="number"
                   min="0"
                   max="1000000"
                   step="0.01"
                   value={securityDeposit}
-                  onChange={(event) =>
-                    setSecurityDeposit(event.target.value)
+                  onChange={(e) =>
+                    setSecurityDeposit(e.target.value)
                   }
                   required
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                  className={`mt-2 ${inputClass}`}
                 />
-              </div>
+              </label>
 
-              <div className="sm:col-span-2">
-                <label
-                  htmlFor="studio-capacity"
-                  className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"
-                >
-                  <Users size={17} className="text-violet-700" />
-                  Maximum Capacity *
-                </label>
+              <label className="block text-sm font-semibold text-slate-700">
+                Maximum Capacity *
                 <input
-                  id="studio-capacity"
                   type="number"
                   min="1"
                   max="500"
                   step="1"
                   value={maxCapacity}
-                  onChange={(event) =>
-                    setMaxCapacity(event.target.value)
-                  }
+                  onChange={(e) => setMaxCapacity(e.target.value)}
                   required
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                  className={`mt-2 ${inputClass}`}
                 />
-              </div>
+              </label>
+
+              <label className="block text-sm font-semibold text-slate-700">
+                Owner Name
+                <input
+                  value={user.name}
+                  readOnly
+                  className={`mt-2 ${inputClass}`}
+                />
+              </label>
+
+              <label className="block text-sm font-semibold text-slate-700 sm:col-span-2">
+                Owner Email
+                <input
+                  value={user.email}
+                  readOnly
+                  className={`mt-2 ${inputClass}`}
+                />
+              </label>
+
+              <label className="block text-sm font-semibold text-slate-700 sm:col-span-2">
+                Detailed Overview *
+                <textarea
+                  rows={6}
+                  minLength={30}
+                  maxLength={3000}
+                  required
+                  value={overview}
+                  onChange={(e) => setOverview(e.target.value)}
+                  placeholder="Describe your studio, equipment, facilities, and what creators can do here."
+                  className={`mt-2 ${inputClass}`}
+                />
+              </label>
             </div>
           </section>
 
-          {/* Images */}
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-6 flex items-center gap-3">
-              <Camera className="text-violet-700" size={23} />
-              <h2 className="text-xl font-bold text-slate-950">
-                Studio Images
-              </h2>
-            </div>
+          <section className="space-y-5 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
+            <h2 className="text-xl font-bold text-slate-950">
+              Studio Images
+            </h2>
 
-            <div>
-              <label
-                htmlFor="studio-image"
-                className="mb-2 block text-sm font-semibold text-slate-700"
-              >
-                Main Image URL *
-              </label>
+            <label className="block text-sm font-semibold text-slate-700">
+              Main Image URL *
               <input
-                id="studio-image"
-                type="text"
                 value={image}
-                onChange={(event) => {
-                  setImage(event.target.value);
-                  setPreviewFailed(false);
-                }}
+                onChange={(e) => setImage(e.target.value)}
                 required
                 placeholder="https://example.com/studio.jpg"
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                className={`mt-2 ${inputClass}`}
               />
-              <p className="mt-2 text-xs text-slate-500">
-                Use a public image URL or a local image path
-                beginning with /images/.
-              </p>
-            </div>
+            </label>
 
-            <div className="mt-6">
-              <label
-                htmlFor="additional-image"
-                className="mb-2 block text-sm font-semibold text-slate-700"
-              >
-                Additional Image URLs
-              </label>
-              <div className="flex gap-2">
+            <StudioImageUploader
+              label="Upload Main Image"
+              disabled={submitting}
+              onUploaded={setImage}
+            />
+
+            {image && validImageUrl(image) && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={image}
+                alt="Main studio preview"
+                className="h-52 w-full rounded-xl object-cover"
+              />
+            )}
+
+            <div className="border-t border-slate-100 pt-5">
+              <p className="mb-3 text-sm font-semibold text-slate-700">
+                Additional Images (up to 9)
+              </p>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <input
-                  id="additional-image"
-                  type="text"
+                  type="url"
                   value={newImage}
-                  onChange={(event) => setNewImage(event.target.value)}
-                  placeholder="Paste another image URL"
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                  onChange={(e) => setNewImage(e.target.value)}
+                  placeholder="Additional image URL"
+                  className={inputClass}
                 />
                 <button
                   type="button"
-                  onClick={addImage}
-                  className="inline-flex items-center gap-2 rounded-xl bg-violet-100 px-4 py-3 text-sm font-semibold text-violet-700 hover:bg-violet-200"
+                  onClick={() => addImage(newImage)}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
                 >
-                  <ImagePlus size={18} />
-                  Add
+                  <Plus size={17} />
+                  Add URL
                 </button>
               </div>
 
-              {additionalImages.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {additionalImages.map((item) => (
-                    <div
-                      key={item}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3"
+              <div className="mt-3">
+                <StudioImageUploader
+                  label="Upload Additional Image"
+                  disabled={submitting || images.length >= 9}
+                  onUploaded={addImage}
+                />
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {images.map((url) => (
+                  <div
+                    key={url}
+                    className="relative overflow-hidden rounded-xl border border-slate-100"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt="Additional studio"
+                      className="h-28 w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Remove image"
+                      onClick={() =>
+                        setImages((current) =>
+                          current.filter((item) => item !== url)
+                        )
+                      }
+                      className="absolute right-2 top-2 rounded-full bg-white p-1.5 text-red-600 shadow"
                     >
-                      <span className="min-w-0 truncate text-xs text-slate-600">
-                        {item}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Remove image"
-                        onClick={() =>
-                          setAdditionalImages((current) =>
-                            current.filter((value) => value !== item)
-                          )
-                        }
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 size={17} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 
-          {/* Amenities */}
           <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-6 flex items-center gap-3">
-              <CheckCircle2 className="text-violet-700" size={23} />
-              <h2 className="text-xl font-bold text-slate-950">
-                Studio Amenities
-              </h2>
-            </div>
+            <h2 className="mb-5 text-xl font-bold text-slate-950">
+              Amenities
+            </h2>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {COMMON_AMENITIES.map((item) => (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {AMENITY_OPTIONS.map((item) => (
                 <label
                   key={item}
-                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm text-slate-700 hover:border-violet-300"
+                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700"
                 >
                   <input
                     type="checkbox"
                     checked={amenities.includes(item)}
                     onChange={() => toggleAmenity(item)}
-                    className="h-4 w-4 accent-violet-700"
+                    className="accent-violet-700"
                   />
                   {item}
                 </label>
               ))}
             </div>
 
-            <div className="mt-5 flex gap-2">
+            <div className="mt-5 flex gap-3">
               <input
-                type="text"
                 value={customAmenity}
-                onChange={(event) =>
-                  setCustomAmenity(event.target.value)
-                }
-                placeholder="Add a custom amenity"
-                className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600"
+                onChange={(e) => setCustomAmenity(e.target.value)}
+                placeholder="Add another amenity"
+                className={inputClass}
               />
               <button
                 type="button"
                 onClick={addCustomAmenity}
-                className="flex items-center gap-2 rounded-xl border border-violet-200 px-4 py-3 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+                className="rounded-xl bg-violet-700 px-5 py-3 font-semibold text-white"
               >
-                <Plus size={17} />
-                Add
+                <Plus size={18} />
               </button>
             </div>
 
-            {amenities.filter(
-              (item) => !COMMON_AMENITIES.includes(item)
-            ).length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {amenities
-                  .filter((item) => !COMMON_AMENITIES.includes(item))
-                  .map((item) => (
-                    <span
-                      key={item}
-                      className="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700"
-                    >
-                      {item}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${item}`}
-                        onClick={() => toggleAmenity(item)}
-                      >
-                        <X size={14} />
-                      </button>
-                    </span>
-                  ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        {/* Sidebar */}
-        <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-          <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            {image.trim() &&
-            isValidImageUrl(image) &&
-            !previewFailed ? (
-              // Native img supports both external and local URLs.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={image.trim()}
-                alt="Studio preview"
-                onError={() => setPreviewFailed(true)}
-                className="h-52 w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-52 flex-col items-center justify-center gap-3 bg-violet-50 text-violet-400">
-                <Camera size={40} />
-                <span className="text-xs text-violet-600">
-                  Studio image preview
-                </span>
-              </div>
-            )}
-
-            <div className="p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
-                LIVE PREVIEW
-              </p>
-              <h3 className="mt-2 text-lg font-bold text-slate-950">
-                {title.trim() || "Your Studio Name"}
-              </h3>
-              <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
-                <MapPin size={15} />
-                {location.trim() || "Studio location"}
-              </p>
-              <p className="mt-4 text-lg font-bold text-violet-700">
-                ৳{Number(hourlyRate || 0).toLocaleString("en-BD")}
-                <span className="text-sm font-normal text-slate-500">
-                  {" "}/hour
-                </span>
-              </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {amenities
+                .filter((item) => !AMENITY_OPTIONS.includes(item))
+                .map((item) => (
+                  <button
+                    type="button"
+                    key={item}
+                    onClick={() => toggleAmenity(item)}
+                    className="inline-flex items-center gap-2 rounded-full bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700"
+                  >
+                    {item}
+                    <Trash2 size={13} />
+                  </button>
+                ))}
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex items-center gap-2">
-              <ShieldCheck size={20} className="text-violet-700" />
-              <h3 className="font-bold text-slate-950">
-                Ready to Publish?
-              </h3>
-            </div>
-
-            <p className="mb-5 text-sm leading-7 text-slate-500">
-              Double-check your studio information before
-              publishing. Your listing will be visible to
-              creators once it is saved.
-            </p>
-
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <Link
+              href="/my-listings"
+              className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-center text-sm font-semibold text-slate-700"
+            >
+              Cancel
+            </Link>
             <button
               type="submit"
               disabled={submitting}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 text-sm font-semibold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-7 py-3 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
             >
               {submitting ? (
                 <>
-                  <LoaderCircle size={19} className="animate-spin" />
-                  Publishing...
+                  <LoaderCircle
+                    size={18}
+                    className="animate-spin"
+                  />
+                  Creating Studio...
                 </>
               ) : (
                 <>
-                  Publish Studio
-                  <ArrowRight size={18} />
+                  <Plus size={18} />
+                  Add Studio
                 </>
               )}
             </button>
-          </section>
-        </aside>
-      </form>
+          </div>
+        </form>
+      </div>
     </main>
   );
 }

@@ -2,6 +2,8 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import ThemeProvider from "@/providers/ThemeProvider";
+import ThemeToggle from "@/components/layout/ThemeToggle";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -17,18 +19,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        suppressHydrationWarning
-        className="min-h-screen bg-[#f8f7fd] text-slate-900 antialiased"
-      >
-        <Navbar />
-
-        <main>{children}</main>
-
-        <Footer />
-
-        <Toaster richColors position="top-right" />
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-[#f8f7fd] text-slate-900 antialiased">
+        <ThemeProvider>
+          <Navbar />
+          <main>{children}</main>
+          <Footer />
+          <ThemeToggle />
+          <Toaster
+            richColors
+            position="top-right"
+          />
+        </ThemeProvider>
       </body>
     </html>
   );

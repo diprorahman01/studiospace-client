@@ -1,14 +1,186 @@
+
 @import "tailwindcss";
-:root{color-scheme:light}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{margin:0}
-.section-wrap{max-width:1280px;margin:0 auto;padding:68px 20px}
-.section-title{font-size:clamp(1.8rem,3vw,2.5rem);font-weight:850;letter-spacing:-.035em;line-height:1.2}
-.section-kicker{margin-bottom:12px;color:#6d28d9;font-size:12px;font-weight:850;letter-spacing:.13em}
-.section-subtitle{margin-top:12px;color:#64748b;font-size:15px}
-.hero-swiper .swiper-button-prev,.hero-swiper .swiper-button-next{color:white;width:32px;height:32px}
-.hero-swiper .swiper-button-prev:after,.hero-swiper .swiper-button-next:after{font-size:19px;font-weight:800}
-.hero-swiper .swiper-pagination-bullet{background:#fff;opacity:.6}
-.hero-swiper .swiper-pagination-bullet-active{background:#a78bfa;opacity:1}
-@media(min-width:768px){.section-wrap{padding:82px 32px}}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+}
+
+.section-wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 68px 20px;
+}
+
+.section-title {
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-weight: 850;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+.section-kicker {
+  margin-bottom: 12px;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+}
+
+.section-subtitle {
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 15px;
+}
+
+.hero-swiper .swiper-button-prev,
+.hero-swiper .swiper-button-next {
+  color: white;
+  width: 32px;
+  height: 32px;
+}
+
+.hero-swiper .swiper-button-prev:after,
+.hero-swiper .swiper-button-next:after {
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.hero-swiper .swiper-pagination-bullet {
+  background: #fff;
+  opacity: 0.6;
+}
+
+.hero-swiper .swiper-pagination-bullet-active {
+  background: #a78bfa;
+  opacity: 1;
+}
+
+@media (min-width: 768px) {
+  .section-wrap {
+    padding: 82px 32px;
+  }
+}
+
+/* Dark mode for the existing StudioSpace pages. */
+
+html.dark body {
+  background: #0b1020;
+  color: #e2e8f0;
+}
+
+html.dark .bg-white,
+html.dark .bg-white\/95 {
+  background-color: #151e30;
+}
+
+html.dark .bg-\[\#f8f7fd\] {
+  background-color: #0b1020;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-100 {
+  background-color: #202b3d;
+}
+
+html.dark .bg-violet-50,
+html.dark .bg-violet-100 {
+  background-color: #252044;
+}
+
+html.dark .bg-green-50 {
+  background-color: #123b32;
+}
+
+html.dark .bg-amber-50 {
+  background-color: #47381d;
+}
+
+html.dark .bg-red-50 {
+  background-color: #442126;
+}
+
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: #f1f5f9;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: #cbd5e1;
+}
+
+html.dark .text-slate-400 {
+  color: #94a3b8;
+}
+
+html.dark .text-violet-700,
+html.dark .text-violet-800,
+html.dark .text-violet-900 {
+  color: #c4b5fd;
+}
+
+html.dark .text-green-700 {
+  color: #86efac;
+}
+
+html.dark .text-red-700,
+html.dark .text-red-600 {
+  color: #fca5a5;
+}
+
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-950 {
+  color: #fde68a;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-violet-100,
+html.dark .border-violet-200 {
+  border-color: #334155;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #182337;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #94a3b8;
+}
+
+html.dark option {
+  background: #182337;
+  color: #f1f5f9;
+}
+
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-xl {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+}
