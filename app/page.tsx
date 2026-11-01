@@ -9,13 +9,9 @@ export default function Home() {
   return (
     <main>
       <HeroSlider />
-
       <FeaturedStudios />
-
       <StudioCategories />
-
       <BookingSteps />
-
       <HostSupport />
     </main>
   );
