@@ -17,12 +17,14 @@ import {
   CheckCircle2,
   Clock3,
   Eye,
+  Inbox,
   LayoutDashboard,
   LoaderCircle,
   MapPin,
   Plus,
   RefreshCw,
   ShieldCheck,
+  Users,
   Wallet,
   XCircle,
 } from "lucide-react";
@@ -49,6 +51,8 @@ type Booking = {
   studioId: string;
   studioTitle?: string;
   studioImage?: string;
+  userName?: string;
+  userEmail?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -57,17 +61,23 @@ type Booking = {
   createdAt?: string;
 };
 
-type StudiosResponse = {
+type StudioResponse = {
   success: boolean;
   message?: string;
   data?: Studio[];
 };
 
-type BookingsResponse = {
+type BookingResponse = {
   success?: boolean;
   message?: string;
   data?: Booking[];
   bookings?: Booking[];
+};
+
+type DashboardData = {
+  studios: Studio[];
+  myBookings: Booking[];
+  hostBookings: Booking[];
 };
 
 function formatMoney(value?: number) {
@@ -79,41 +89,42 @@ function formatMoney(value?: number) {
 function formatDate(value?: string) {
   if (!value) return "Not available";
 
-  const date = new Date(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
+  const date = match
+    ? new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3])
+      )
+    : new Date(value);
 
-  return date.toLocaleDateString("en-BD", {
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
 }
 
-function BookingStatus({
-  status,
-}: {
-  status: string;
-}) {
-  const value = status.toLowerCase();
+function StatusBadge({ status }: { status: string }) {
+  const normalized = status.toLowerCase();
 
-  let styles = "bg-slate-100 text-slate-700";
-
-  if (value === "confirmed") {
-    styles = "bg-green-50 text-green-700";
-  } else if (value === "pending") {
-    styles = "bg-amber-50 text-amber-700";
-  } else if (value === "cancelled") {
-    styles = "bg-red-50 text-red-700";
-  }
+  const styles =
+    normalized === "confirmed"
+      ? "bg-green-50 text-green-700"
+      : normalized === "pending"
+        ? "bg-amber-50 text-amber-700"
+        : normalized === "cancelled"
+          ? "bg-red-50 text-red-700"
+          : "bg-slate-100 text-slate-700";
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${styles}`}
+      className={`inline-flex shrink-0 rounded-full px-3 py-1 text-xs font-semibold capitalize ${styles}`}
     >
-      {value}
+      {normalized}
     </span>
   );
 }
@@ -131,16 +142,13 @@ function StudioImage({
   if (!src || failedSrc === src) {
     return (
       <div className="flex h-20 w-24 shrink-0 items-center justify-center rounded-xl bg-violet-50">
-        <Building2
-          size={25}
-          className="text-violet-400"
-        />
+        <Building2 size={26} className="text-violet-400" />
       </div>
     );
   }
 
   return (
-    // Images can be remote or local public paths.
+    // Supports local and remote studio images.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
@@ -151,44 +159,64 @@ function StudioImage({
   );
 }
 
-async function readResponse(
-  response: Response
+async function fetchJson(
+  path: string,
+  signal?: AbortSignal
 ): Promise<unknown> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+    },
+    signal,
+  });
+
+  if (response.status === 401) {
+    throw new Error("UNAUTHORIZED");
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Request failed for ${path} (${response.status}).`
+    );
+  }
+
   try {
     return await response.json();
   } catch {
     throw new Error(
-      `The server returned an invalid response (${response.status}).`
+      `Invalid server response for ${path}.`
     );
   }
 }
 
-function readStudios(value: unknown): Studio[] {
+function parseStudios(value: unknown): Studio[] {
   if (
     !value ||
     typeof value !== "object" ||
     Array.isArray(value)
   ) {
-    throw new Error("Invalid studio response.");
+    throw new Error("Invalid studio listings response.");
   }
 
-  const result = value as StudiosResponse;
+  const result = value as StudioResponse;
 
-  if (
-    !result.success ||
-    !Array.isArray(result.data)
-  ) {
+  if (!result.success || !Array.isArray(result.data)) {
     throw new Error(
-      result.message ||
-        "Could not load your studios."
+      result.message || "Could not load studio listings."
     );
   }
 
   return result.data;
 }
 
-function readBookings(value: unknown): Booking[] {
-  // Accept either an array or an API envelope.
+function parseBookings(
+  value: unknown,
+  label: string
+): Booking[] {
+  // Existing customer bookings may return an array.
   if (Array.isArray(value)) {
     return value as Booking[];
   }
@@ -197,10 +225,16 @@ function readBookings(value: unknown): Booking[] {
     !value ||
     typeof value !== "object"
   ) {
-    throw new Error("Invalid booking response.");
+    throw new Error(`Invalid ${label} response.`);
   }
 
-  const result = value as BookingsResponse;
+  const result = value as BookingResponse;
+
+  if (result.success === false) {
+    throw new Error(
+      result.message || `Unable to load ${label}.`
+    );
+  }
 
   if (Array.isArray(result.data)) {
     return result.data;
@@ -211,9 +245,21 @@ function readBookings(value: unknown): Booking[] {
   }
 
   throw new Error(
-    result.message ||
-      "Could not load your bookings."
+    result.message || `Missing ${label} data.`
   );
+}
+
+function sortRecent<T extends { createdAt?: string }>(
+  items: T[],
+  limit: number
+): T[] {
+  return [...items]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime()
+    )
+    .slice(0, limit);
 }
 
 export default function DashboardPage() {
@@ -227,92 +273,56 @@ export default function DashboardPage() {
   const userId = session?.user?.id;
   const userName = session?.user?.name || "Creator";
 
-  const [studios, setStudios] =
-    useState<Studio[]>([]);
-  const [bookings, setBookings] =
+  const [studios, setStudios] = useState<Studio[]>([]);
+  const [myBookings, setMyBookings] = useState<Booking[]>([]);
+  const [hostBookings, setHostBookings] =
     useState<Booking[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] =
-    useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const loadDashboard = useCallback(
-    async (signal?: AbortSignal) => {
-      const [studiosResult, bookingsResult] =
-        await Promise.allSettled([
-          fetch(`${API_URL}/api/studios/mine`, {
-            credentials: "include",
-            cache: "no-store",
-            signal,
-          }),
-          fetch(`${API_URL}/api/bookings/my`, {
-            credentials: "include",
-            cache: "no-store",
-            signal,
-          }),
-        ]);
-
-      if (
-        studiosResult.status === "rejected" ||
-        bookingsResult.status === "rejected"
-      ) {
-        throw new Error(
-          "Unable to connect to the StudioSpace server."
-        );
-      }
-
-      const studioResponse = studiosResult.value;
-      const bookingResponse = bookingsResult.value;
-
-      if (
-        studioResponse.status === 401 ||
-        bookingResponse.status === 401
-      ) {
-        throw new Error("UNAUTHORIZED");
-      }
-
-      if (!studioResponse.ok) {
-        throw new Error(
-          `Studio API error (${studioResponse.status}).`
-        );
-      }
-
-      if (!bookingResponse.ok) {
-        throw new Error(
-          `Booking API error (${bookingResponse.status}).`
-        );
-      }
-
-      const [studiosBody, bookingsBody] =
+    async (signal?: AbortSignal): Promise<DashboardData> => {
+      const [studioResult, myResult, hostResult] =
         await Promise.all([
-          readResponse(studioResponse),
-          readResponse(bookingResponse),
+          fetchJson("/api/studios/mine", signal),
+          fetchJson("/api/bookings/my", signal),
+          fetchJson("/api/host/bookings", signal),
         ]);
 
       return {
-        studios: readStudios(studiosBody),
-        bookings: readBookings(bookingsBody),
+        studios: parseStudios(studioResult),
+        myBookings: parseBookings(
+          myResult,
+          "customer bookings"
+        ),
+        hostBookings: parseBookings(
+          hostResult,
+          "host bookings"
+        ),
       };
     },
     []
   );
 
+  // Load dashboard after confirming the session.
   useEffect(() => {
     if (checkingSession || !userId) return;
 
     const controller = new AbortController();
 
-    async function fetchInitialData() {
+    async function loadInitialDashboard() {
       try {
-        const data = await loadDashboard(
+        const result = await loadDashboard(
           controller.signal
         );
 
         if (controller.signal.aborted) return;
 
-        setStudios(data.studios);
-        setBookings(data.bookings);
+        setStudios(result.studios);
+        setMyBookings(result.myBookings);
+        setHostBookings(result.hostBookings);
         setError("");
       } catch (err) {
         if (controller.signal.aborted) return;
@@ -328,7 +338,7 @@ export default function DashboardPage() {
         setError(
           err instanceof Error
             ? err.message
-            : "Unable to load the dashboard."
+            : "Unable to load your dashboard."
         );
       } finally {
         if (!controller.signal.aborted) {
@@ -337,15 +347,10 @@ export default function DashboardPage() {
       }
     }
 
-    void fetchInitialData();
+    void loadInitialDashboard();
 
     return () => controller.abort();
-  }, [
-    checkingSession,
-    userId,
-    loadDashboard,
-    router,
-  ]);
+  }, [checkingSession, userId, loadDashboard, router]);
 
   async function handleRefresh() {
     if (loading || refreshing) return;
@@ -353,17 +358,20 @@ export default function DashboardPage() {
     setRefreshing(true);
 
     try {
-      const data = await loadDashboard();
+      const result = await loadDashboard();
 
-      setStudios(data.studios);
-      setBookings(data.bookings);
+      setStudios(result.studios);
+      setMyBookings(result.myBookings);
+      setHostBookings(result.hostBookings);
       setError("");
-      toast.success("Dashboard updated.");
+
+      toast.success("Dashboard updated successfully.");
     } catch (err) {
       if (
         err instanceof Error &&
         err.message === "UNAUTHORIZED"
       ) {
+        toast.error("Your session has expired.");
         router.replace("/login");
         return;
       }
@@ -371,7 +379,7 @@ export default function DashboardPage() {
       setError(
         err instanceof Error
           ? err.message
-          : "Could not refresh the dashboard."
+          : "Unable to refresh dashboard."
       );
     } finally {
       setRefreshing(false);
@@ -384,9 +392,12 @@ export default function DashboardPage() {
         (studio.status || "active") === "active"
     ).length;
 
-    const pendingBookings = bookings.filter(
-      (booking) =>
-        booking.status === "pending"
+    const pendingHostBookings = hostBookings.filter(
+      (booking) => booking.status === "pending"
+    ).length;
+
+    const confirmedHostBookings = hostBookings.filter(
+      (booking) => booking.status === "confirmed"
     ).length;
 
     return [
@@ -398,51 +409,60 @@ export default function DashboardPage() {
         href: "/my-listings",
       },
       {
-        label: "Active Listings",
+        label: "Active Studios",
         value: activeStudios,
         icon: CheckCircle2,
         color: "bg-green-50 text-green-700",
         href: "/my-listings",
       },
       {
-        label: "My Bookings",
-        value: bookings.length,
-        icon: CalendarCheck2,
+        label: "Host Bookings",
+        value: hostBookings.length,
+        icon: Inbox,
         color: "bg-blue-50 text-blue-700",
-        href: "/my-bookings",
+        href: "/host-bookings",
       },
       {
-        label: "Pending Bookings",
-        value: pendingBookings,
+        label: "Pending Requests",
+        value: pendingHostBookings,
         icon: Clock3,
         color: "bg-amber-50 text-amber-700",
+        href: "/host-bookings",
+      },
+      {
+        label: "Confirmed Requests",
+        value: confirmedHostBookings,
+        icon: CalendarCheck2,
+        color: "bg-green-50 text-green-700",
+        href: "/host-bookings",
+      },
+      {
+        label: "My Bookings",
+        value: myBookings.length,
+        icon: CalendarDays,
+        color: "bg-violet-50 text-violet-700",
         href: "/my-bookings",
       },
     ];
-  }, [studios, bookings]);
+  }, [studios, myBookings, hostBookings]);
+
+  const pendingRequests = hostBookings.filter(
+    (booking) => booking.status === "pending"
+  ).length;
 
   const recentStudios = useMemo(
-    () =>
-      [...studios]
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt || 0).getTime() -
-            new Date(a.createdAt || 0).getTime()
-        )
-        .slice(0, 3),
+    () => sortRecent(studios, 3),
     [studios]
   );
 
-  const recentBookings = useMemo(
-    () =>
-      [...bookings]
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt || 0).getTime() -
-            new Date(a.createdAt || 0).getTime()
-        )
-        .slice(0, 4),
-    [bookings]
+  const recentHostBookings = useMemo(
+    () => sortRecent(hostBookings, 4),
+    [hostBookings]
+  );
+
+  const recentMyBookings = useMemo(
+    () => sortRecent(myBookings, 3),
+    [myBookings]
   );
 
   if (checkingSession || !userId) {
@@ -461,12 +481,12 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-[80vh] bg-[#f8f7fd]">
-      {/* Heading */}
+      {/* Header */}
       <section className="border-b border-violet-100 bg-white">
         <div className="mx-auto max-w-7xl px-5 py-12">
           <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-violet-700">
             <LayoutDashboard size={17} />
-            CREATOR DASHBOARD
+            STUDIO MANAGEMENT DASHBOARD
           </p>
 
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
@@ -474,9 +494,11 @@ export default function DashboardPage() {
               <h1 className="text-3xl font-extrabold text-slate-950 sm:text-4xl">
                 Welcome back, {userName}!
               </h1>
+
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-                View your studio listings, booking
-                activity, and important updates.
+                Manage your studios, review customer
+                reservations, and keep track of your
+                personal bookings.
               </p>
             </div>
 
@@ -541,8 +563,40 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
-            {/* Statistics */}
-            <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            {/* Pending host requests alert */}
+            {pendingRequests > 0 && (
+              <section className="flex flex-col justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-6 sm:flex-row sm:items-center">
+                <div className="flex items-start gap-3">
+                  <Clock3
+                    size={24}
+                    className="mt-0.5 shrink-0 text-amber-700"
+                  />
+                  <div>
+                    <h2 className="font-bold text-amber-950">
+                      You have {pendingRequests} pending{" "}
+                      {pendingRequests === 1
+                        ? "booking request"
+                        : "booking requests"}
+                    </h2>
+                    <p className="mt-1 text-sm text-amber-800">
+                      Review these requests and approve
+                      or reject them from Host Bookings.
+                    </p>
+                  </div>
+                </div>
+
+                <Link
+                  href="/host-bookings"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-700 px-5 py-3 text-sm font-semibold text-white hover:bg-amber-800"
+                >
+                  Review Requests
+                  <ArrowRight size={16} />
+                </Link>
+              </section>
+            )}
+
+            {/* Real statistics */}
+            <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {stats.map((stat) => {
                 const Icon = stat.icon;
 
@@ -562,71 +616,172 @@ export default function DashboardPage() {
                       {stat.label}
                     </p>
 
-                    <p className="mt-2 text-3xl font-extrabold text-slate-950">
-                      {stat.value}
-                    </p>
+                    <div className="mt-2 flex items-end justify-between">
+                      <p className="text-3xl font-extrabold text-slate-950">
+                        {stat.value}
+                      </p>
+                      <ArrowRight
+                        size={17}
+                        className="text-slate-400"
+                      />
+                    </div>
                   </Link>
                 );
               })}
             </section>
 
             {/* Quick actions */}
-            <section className="grid gap-5 md:grid-cols-3">
-              <Link
-                href="/add-studio"
-                className="flex items-center justify-between rounded-2xl bg-violet-700 p-6 text-white transition hover:bg-violet-800"
-              >
-                <div>
-                  <p className="font-bold">
-                    Add a New Studio
-                  </p>
-                  <p className="mt-2 text-sm text-violet-100">
-                    Publish another creative space.
-                  </p>
-                </div>
-                <Plus size={25} />
-              </Link>
+            <section>
+              <h2 className="mb-4 text-xl font-bold text-slate-950">
+                Quick Actions
+              </h2>
 
-              <Link
-                href="/my-listings"
-                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-6 transition hover:shadow-md"
-              >
-                <div>
-                  <p className="font-bold text-slate-950">
-                    Manage Listings
-                  </p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    View, edit, or remove your studios.
-                  </p>
-                </div>
-                <Building2
-                  size={25}
-                  className="text-violet-700"
-                />
-              </Link>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <Link
+                  href="/add-studio"
+                  className="flex items-center justify-between gap-4 rounded-2xl bg-violet-700 p-5 text-white hover:bg-violet-800"
+                >
+                  <div>
+                    <p className="font-bold">
+                      Add a Studio
+                    </p>
+                    <p className="mt-1 text-xs text-violet-100">
+                      Publish a creative space
+                    </p>
+                  </div>
+                  <Plus size={25} />
+                </Link>
 
-              <Link
-                href="/my-bookings"
-                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white p-6 transition hover:shadow-md"
-              >
-                <div>
-                  <p className="font-bold text-slate-950">
-                    My Reservations
-                  </p>
-                  <p className="mt-2 text-sm text-slate-500">
-                    Review bookings you have made.
-                  </p>
-                </div>
-                <CalendarDays
-                  size={25}
-                  className="text-violet-700"
-                />
-              </Link>
+                <Link
+                  href="/my-listings"
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-5 hover:shadow-md"
+                >
+                  <div>
+                    <p className="font-bold text-slate-950">
+                      My Listings
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Edit or delete your studios
+                    </p>
+                  </div>
+                  <Building2
+                    size={24}
+                    className="text-violet-700"
+                  />
+                </Link>
+
+                <Link
+                  href="/host-bookings"
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-5 hover:shadow-md"
+                >
+                  <div>
+                    <p className="font-bold text-slate-950">
+                      Host Bookings
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Manage customer requests
+                    </p>
+                  </div>
+                  <Users
+                    size={24}
+                    className="text-violet-700"
+                  />
+                </Link>
+
+                <Link
+                  href="/my-bookings"
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white p-5 hover:shadow-md"
+                >
+                  <div>
+                    <p className="font-bold text-slate-950">
+                      My Bookings
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      View your reservations
+                    </p>
+                  </div>
+                  <CalendarDays
+                    size={24}
+                    className="text-violet-700"
+                  />
+                </Link>
+              </div>
             </section>
 
-            {/* Recent data */}
+            {/* Recent host reservations */}
+            <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-7">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-950">
+                    Recent Customer Reservations
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Bookings received for your studios
+                  </p>
+                </div>
+
+                <Link
+                  href="/host-bookings"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:text-violet-900"
+                >
+                  Manage Bookings
+                  <ArrowRight size={16} />
+                </Link>
+              </div>
+
+              {recentHostBookings.length === 0 ? (
+                <div className="rounded-xl bg-slate-50 p-8 text-center">
+                  <Inbox
+                    size={36}
+                    className="mx-auto text-violet-400"
+                  />
+                  <p className="mt-3 font-semibold text-slate-800">
+                    No customer reservations yet
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    Reservations will appear when someone
+                    books a studio you own.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentHostBookings.map((booking) => (
+                    <div
+                      key={booking._id}
+                      className="flex flex-col justify-between gap-4 rounded-xl border border-slate-100 p-4 sm:flex-row sm:items-center"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-950">
+                          {booking.studioTitle ||
+                            "Studio Reservation"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-600">
+                          Customer:{" "}
+                          {booking.userName ||
+                            "Not provided"}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {formatDate(booking.date)} ·{" "}
+                          {booking.startTime}–{booking.endTime}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-3">
+                        <StatusBadge status={booking.status} />
+                        <span className="font-bold text-violet-700">
+                          {formatMoney(
+                            booking.totalAmount
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Recent studios and personal bookings */}
             <section className="grid gap-7 xl:grid-cols-2">
-              {/* My studios */}
               <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-7">
                 <div className="mb-6 flex items-center justify-between gap-3">
                   <div>
@@ -634,13 +789,13 @@ export default function DashboardPage() {
                       Recent Studio Listings
                     </h2>
                     <p className="mt-1 text-xs text-slate-500">
-                      Studios created by your account
+                      Studios you have created
                     </p>
                   </div>
 
                   <Link
                     href="/my-listings"
-                    className="flex items-center gap-1 text-sm font-semibold text-violet-700 hover:text-violet-900"
+                    className="flex items-center gap-1 text-sm font-semibold text-violet-700"
                   >
                     View All
                     <ArrowRight size={15} />
@@ -650,24 +805,18 @@ export default function DashboardPage() {
                 {recentStudios.length === 0 ? (
                   <div className="rounded-xl bg-slate-50 p-8 text-center">
                     <Building2
-                      size={34}
+                      size={35}
                       className="mx-auto text-violet-400"
                     />
-
                     <p className="mt-3 font-semibold text-slate-800">
                       No studios yet
                     </p>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                      Create your first studio listing.
-                    </p>
-
                     <Link
                       href="/add-studio"
-                      className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
                     >
-                      <Plus size={16} />
-                      Add Studio
+                      <Plus size={17} />
+                      Create Studio
                     </Link>
                   </div>
                 ) : (
@@ -686,14 +835,12 @@ export default function DashboardPage() {
                           <p className="truncate font-semibold text-slate-950">
                             {studio.title}
                           </p>
-
                           <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                             <MapPin size={13} />
                             <span className="truncate">
                               {studio.location}
                             </span>
                           </p>
-
                           <p className="mt-2 text-sm font-bold text-violet-700">
                             {formatMoney(
                               studio.hourlyRate
@@ -717,12 +864,11 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* My bookings */}
               <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-7">
                 <div className="mb-6 flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-xl font-bold text-slate-950">
-                      Recent Bookings
+                      My Recent Bookings
                     </h2>
                     <p className="mt-1 text-xs text-slate-500">
                       Reservations made by your account
@@ -731,73 +877,56 @@ export default function DashboardPage() {
 
                   <Link
                     href="/my-bookings"
-                    className="flex items-center gap-1 text-sm font-semibold text-violet-700 hover:text-violet-900"
+                    className="flex items-center gap-1 text-sm font-semibold text-violet-700"
                   >
                     View All
                     <ArrowRight size={15} />
                   </Link>
                 </div>
 
-                {recentBookings.length === 0 ? (
+                {recentMyBookings.length === 0 ? (
                   <div className="rounded-xl bg-slate-50 p-8 text-center">
                     <CalendarDays
-                      size={34}
+                      size={35}
                       className="mx-auto text-violet-400"
                     />
-
                     <p className="mt-3 font-semibold text-slate-800">
-                      No bookings yet
+                      No personal bookings yet
                     </p>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                      Explore studios and book your
-                      next creative session.
-                    </p>
-
                     <Link
                       href="/studios"
-                      className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
                     >
                       Explore Studios
                       <ArrowRight size={16} />
                     </Link>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {recentBookings.map((booking) => (
+                  <div className="space-y-3">
+                    {recentMyBookings.map((booking) => (
                       <div
                         key={booking._id}
                         className="rounded-xl border border-slate-100 p-4"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate font-semibold text-slate-950">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-slate-950">
                               {booking.studioTitle ||
                                 "Studio Booking"}
                             </p>
-                            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                              <CalendarDays size={14} />
+                            <p className="mt-1 text-xs text-slate-500">
                               {formatDate(booking.date)}
                             </p>
                           </div>
-
-                          <BookingStatus
-                            status={booking.status}
-                          />
+                          <StatusBadge status={booking.status} />
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                          <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                            <Clock3 size={14} />
-                            {booking.startTime}–
-                            {booking.endTime}
+                        <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                          <span className="text-slate-500">
+                            {booking.startTime}–{booking.endTime}
                           </span>
-
-                          <span className="flex items-center gap-1 text-sm font-bold text-violet-700">
-                            <Wallet size={14} />
-                            {formatMoney(
-                              booking.totalAmount
-                            )}
+                          <span className="font-bold text-violet-700">
+                            {formatMoney(booking.totalAmount)}
                           </span>
                         </div>
                       </div>
@@ -807,19 +936,17 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            {/* Security note */}
+            {/* Information note */}
             <div className="flex items-start gap-3 rounded-2xl border border-violet-100 bg-white px-6 py-5">
               <ShieldCheck
                 size={21}
                 className="mt-0.5 shrink-0 text-violet-700"
               />
-
               <p className="text-sm leading-7 text-slate-600">
-                Dashboard information comes from
-                authenticated account-specific APIs.
-                Studio management actions are also
-                protected by server-side ownership
-                checks.
+                All dashboard statistics are loaded from
+                authenticated StudioSpace APIs. Host
+                booking counts represent reservation
+                statuses, not completed payments or revenue.
               </p>
             </div>
           </>
