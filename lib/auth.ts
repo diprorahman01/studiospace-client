@@ -1,3 +1,4 @@
+
 import "server-only";
 
 import { betterAuth } from "better-auth";
@@ -17,4 +18,8 @@ export const auth = betterAuth({
   },
 
   plugins: [nextCookies()],
+
+  logger: {
+    level: "debug",
+  },
 });

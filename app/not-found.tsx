@@ -1,53 +1,66 @@
 
 import Link from "next/link";
-import { Aperture, ArrowLeft, Clapperboard } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  ArrowLeft,
+  Home,
+  SearchX,
+} from "lucide-react";
 
 export default function NotFound() {
   return (
-    <main className="flex min-h-[80vh] items-center justify-center bg-gradient-to-b from-violet-50 to-white px-6 py-20">
-      <div className="mx-auto max-w-xl text-center">
-        {/* Studio illustration */}
-        <div className="relative mx-auto mb-8 flex h-36 w-36 items-center justify-center rounded-full bg-violet-100">
-          <Aperture className="h-20 w-20 text-violet-700" />
+    <main className="flex min-h-[75vh] items-center justify-center bg-[#f8f7fd] px-5 py-16">
+      <div className="mx-auto w-full max-w-xl text-center">
 
-          <div className="absolute -bottom-3 -right-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-600 shadow-lg">
-            <Clapperboard className="h-9 w-9 text-white" />
-          </div>
+        {/* Error icon */}
+        <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-3xl bg-violet-100">
+          <SearchX
+            size={48}
+            className="text-violet-700"
+          />
         </div>
 
         {/* Error number */}
-        <h1 className="text-8xl font-extrabold tracking-tight text-violet-700 sm:text-9xl">
+        <h1 className="text-7xl font-extrabold tracking-tight text-violet-700 sm:text-8xl">
           404
         </h1>
 
-        {/* Error message */}
-        <h2 className="mt-4 text-3xl font-bold text-slate-900">
-          Page Not Found
+        {/* Message */}
+        <h2 className="mt-5 text-2xl font-bold text-slate-950 sm:text-3xl">
+          Oops! Page Not Found
         </h2>
 
-        <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-slate-600">
-          Oops! The creative space you are looking for does not exist
-          or has been moved. Let&apos;s get you back on track.
+        <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-slate-500 sm:text-base">
+          The page you are looking for might have been
+          moved, deleted, or never existed. Don&apos;t worry,
+          you can continue exploring StudioSpace.
         </p>
 
-        {/* Navigation button */}
-        <div className="mt-9">
-          <Button
-            asChild
-            size="lg"
-            className="rounded-lg bg-violet-700 px-8 text-white hover:bg-violet-800"
+        {/* Navigation buttons */}
+        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+
+          <Link
+            href="/"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-violet-800 sm:w-auto"
           >
-            <Link href="/">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Return to Home
-            </Link>
-          </Button>
+            <Home size={18} />
+            Back to Home
+          </Link>
+
+          <Link
+            href="/studios"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-6 py-3.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-50 sm:w-auto"
+          >
+            <ArrowLeft size={18} />
+            Explore Studios
+          </Link>
+
         </div>
 
-        <p className="mt-12 text-sm text-slate-400">
+        {/* Footer message */}
+        <p className="mt-10 text-xs text-slate-400">
           StudioSpace — Create Without Limits
         </p>
+
       </div>
     </main>
   );

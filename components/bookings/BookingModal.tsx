@@ -1,24 +1,24 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertCircle,
+  ArrowRight,
   CalendarDays,
+  CheckCircle2,
   Clock3,
   LoaderCircle,
   LockKeyhole,
-  X,
-  CheckCircle2,
-  AlertCircle,
-  ArrowRight,
   ShieldCheck,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import type { Studio } from "@/types/studio";
 
-type BookingModalProps = {
+type Props = {
   studio: Studio;
 };
 
@@ -32,34 +32,35 @@ type BookingResponse = {
 };
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-const timeSlots = Array.from({ length: 25 }, (_, index) => {
-  const totalMinutes = 8 * 60 + index * 30;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+const TIME_SLOTS = Array.from({ length: 25 }, (_, index) => {
+  const total = 8 * 60 + index * 30;
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
 
   return `${String(hours).padStart(2, "0")}:${String(
     minutes
   ).padStart(2, "0")}`;
 });
 
-function minutesFromTime(time: string) {
+function toMinutes(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + minutes;
 }
 
 function formatTime(time: string) {
   const [hours, minutes] = time.split(":").map(Number);
-  const hour = hours % 12 || 12;
-  const period = hours >= 12 ? "PM" : "AM";
 
-  return `${hour}:${String(minutes).padStart(2, "0")} ${period}`;
+  return `${hours % 12 || 12}:${String(minutes).padStart(
+    2,
+    "0"
+  )} ${hours >= 12 ? "PM" : "AM"}`;
 }
 
-function getLocalDate() {
+function localDate() {
   const now = new Date();
+
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
@@ -67,33 +68,33 @@ function getLocalDate() {
   return `${year}-${month}-${day}`;
 }
 
-function formatMoney(value: number) {
-  return `৳${value.toLocaleString("en-BD", {
-    minimumFractionDigits: 0,
+function money(amount: number) {
+  return `৳${amount.toLocaleString("en-BD", {
     maximumFractionDigits: 2,
   })}`;
 }
 
-export default function BookingModal({
-  studio,
-}: BookingModalProps) {
+export default function BookingModal({ studio }: Props) {
   const router = useRouter();
-  const { data: session, isPending: checkingSession } =
-    authClient.useSession();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [bookingDate, setBookingDate] = useState("");
+  const {
+    data: session,
+    isPending: checkingSession,
+  } = authClient.useSession();
+
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("12:00");
   const [submitting, setSubmitting] = useState(false);
-  const [today, setToday] = useState("");
 
-  useEffect(() => {
-    setToday(getLocalDate());
-  }, []);
+  const [today] = useState(() => localDate());
 
-  const startMinutes = minutesFromTime(startTime);
-  const endMinutes = minutesFromTime(endTime);
+  const startMinutes = toMinutes(startTime);
+  const endMinutes = toMinutes(endTime);
+
+  const validTime = endMinutes > startMinutes;
+  const validDate = date !== "" && date >= today;
 
   const duration = Math.max(
     0,
@@ -108,99 +109,99 @@ export default function BookingModal({
     [duration, hourlyRate]
   );
 
-  const totalAmount = rentalCost + securityDeposit;
-
-  const validTimes = endMinutes > startMinutes;
-
-  const validDate =
-    Boolean(bookingDate) &&
-    Boolean(today) &&
-    bookingDate >= today;
+  const total = rentalCost + securityDeposit;
 
   function closeModal() {
-    if (submitting) return;
-    setIsOpen(false);
+    if (!submitting) {
+      setOpen(false);
+    }
   }
 
   async function handleBooking() {
+    if (submitting) return;
+
     if (checkingSession) {
-      toast.info("Checking your login session...");
+      toast.info("Checking your session...");
       return;
     }
 
     if (!session?.user) {
-      toast.error("Please log in before booking a studio.");
-      setIsOpen(false);
+      toast.error("Please log in to book a studio.");
+      setOpen(false);
       router.push("/login");
       return;
     }
 
     if (!validDate) {
-      toast.error("Please select a valid booking date.");
+      toast.error("Please select a future booking date.");
       return;
     }
 
-    if (!validTimes) {
-      toast.error("End time must be later than start time.");
+    if (!validTime) {
+      toast.error("End time must be after start time.");
       return;
     }
 
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/bookings`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          studioId: studio._id,
-          date: bookingDate,
-          startTime,
-          endTime,
-        }),
-      });
+      const response = await fetch(
+        `${API_URL}/api/bookings`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            studioId: studio._id,
+            date,
+            startTime,
+            endTime,
+          }),
+        }
+      );
 
       const result: BookingResponse = await response.json();
 
-      if (!response.ok || !result.success) {
-        if (response.status === 401) {
-          toast.error("Your session has expired. Please log in.");
-          setIsOpen(false);
-          router.push("/login");
-          return;
-        }
+      if (response.status === 401) {
+        toast.error("Your login session has expired.");
+        setOpen(false);
+        router.push("/login");
+        return;
+      }
 
-        if (response.status === 409) {
-          toast.error(
-            result.message ||
-              "This studio is unavailable for the selected time."
-          );
-          return;
-        }
-
+      if (response.status === 409) {
         toast.error(
-          result.message || "Failed to create booking."
+          result.message ||
+            "This time slot has already been booked."
+        );
+        return;
+      }
+
+      if (!response.ok || !result.success) {
+        toast.error(
+          result.message || "Unable to create booking."
         );
         return;
       }
 
       toast.success(
-        result.message || "Booking request submitted!"
+        result.message || "Booking submitted successfully!"
       );
 
-      setIsOpen(false);
-      setBookingDate("");
+      setOpen(false);
+      setDate("");
       setStartTime("10:00");
       setEndTime("12:00");
 
       router.refresh();
     } catch (error) {
-      console.error("Booking request error:", error);
+      console.error("Booking error:", error);
 
       toast.error(
-        "Could not connect to the booking server. Please try again."
+        "Could not connect to the server. Please try again."
       );
     } finally {
       setSubmitting(false);
@@ -209,19 +210,18 @@ export default function BookingModal({
 
   return (
     <>
-      {/* Open modal button */}
+      {/* Open booking dialog */}
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-violet-800"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-6 py-3.5 text-sm font-semibold text-white hover:bg-violet-800"
       >
         <CalendarDays size={19} />
         Book Workspace Now
         <ArrowRight size={17} />
       </button>
 
-      {/* Modal overlay */}
-      {isOpen && (
+      {open && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4"
           onMouseDown={(event) => {
@@ -247,7 +247,7 @@ export default function BookingModal({
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Select your preferred booking schedule.
+                  Choose your preferred date and time.
                 </p>
               </div>
 
@@ -256,15 +256,14 @@ export default function BookingModal({
                 onClick={closeModal}
                 disabled={submitting}
                 aria-label="Close booking modal"
-                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Content */}
             <div className="max-h-[70vh] space-y-6 overflow-y-auto px-6 py-6">
-              {/* Studio summary */}
+              {/* Selected studio */}
               <div className="rounded-xl border border-violet-100 bg-violet-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
                   Selected Studio
@@ -275,19 +274,20 @@ export default function BookingModal({
                 </h3>
 
                 <p className="mt-1 text-sm text-slate-600">
-                  {formatMoney(hourlyRate)} per hour
+                  {money(hourlyRate)} per hour
                 </p>
               </div>
 
-              {/* Login notice */}
+              {/* Authentication notice */}
               {!checkingSession && !session?.user && (
                 <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <AlertCircle
                     size={19}
                     className="mt-0.5 shrink-0 text-amber-600"
                   />
+
                   <p className="text-sm text-amber-900">
-                    You must log in before submitting a booking.
+                    You must log in before confirming a booking.
                   </p>
                 </div>
               )}
@@ -308,17 +308,15 @@ export default function BookingModal({
                 <input
                   id="booking-date"
                   type="date"
-                  value={bookingDate}
-                  min={today || undefined}
-                  onChange={(event) =>
-                    setBookingDate(event.target.value)
-                  }
+                  value={date}
+                  min={today}
+                  onChange={(e) => setDate(e.target.value)}
                   disabled={submitting}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600 disabled:opacity-60"
                 />
               </div>
 
-              {/* Time selectors */}
+              {/* Booking times */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label
@@ -335,13 +333,11 @@ export default function BookingModal({
                   <select
                     id="booking-start"
                     value={startTime}
-                    onChange={(event) =>
-                      setStartTime(event.target.value)
-                    }
+                    onChange={(e) => setStartTime(e.target.value)}
                     disabled={submitting}
                     className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600 disabled:opacity-60"
                   >
-                    {timeSlots.slice(0, -1).map((time) => (
+                    {TIME_SLOTS.slice(0, -1).map((time) => (
                       <option key={time} value={time}>
                         {formatTime(time)}
                       </option>
@@ -364,13 +360,11 @@ export default function BookingModal({
                   <select
                     id="booking-end"
                     value={endTime}
-                    onChange={(event) =>
-                      setEndTime(event.target.value)
-                    }
+                    onChange={(e) => setEndTime(e.target.value)}
                     disabled={submitting}
                     className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600 disabled:opacity-60"
                   >
-                    {timeSlots.slice(1).map((time) => (
+                    {TIME_SLOTS.slice(1).map((time) => (
                       <option key={time} value={time}>
                         {formatTime(time)}
                       </option>
@@ -405,7 +399,7 @@ export default function BookingModal({
                     </span>
 
                     <span className="font-medium text-slate-900">
-                      {formatMoney(rentalCost)}
+                      {money(rentalCost)}
                     </span>
                   </div>
 
@@ -415,20 +409,18 @@ export default function BookingModal({
                     </span>
 
                     <span className="font-medium text-slate-900">
-                      {formatMoney(securityDeposit)}
+                      {money(securityDeposit)}
                     </span>
                   </div>
 
-                  <div className="border-t border-slate-200 pt-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="font-bold text-slate-950">
-                        Total Amount
-                      </span>
+                  <div className="flex justify-between gap-4 border-t border-slate-200 pt-3">
+                    <span className="font-bold text-slate-950">
+                      Total Amount
+                    </span>
 
-                      <span className="text-xl font-extrabold text-violet-700">
-                        {formatMoney(totalAmount)}
-                      </span>
-                    </div>
+                    <span className="text-xl font-extrabold text-violet-700">
+                      {money(total)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -438,14 +430,15 @@ export default function BookingModal({
                   size={17}
                   className="shrink-0 text-violet-700"
                 />
+
                 <span>
-                  Submitting creates a pending booking request.
+                  Your booking will be submitted as pending.
                   No online payment is collected at this stage.
                 </span>
               </div>
             </div>
 
-            {/* Footer */}
+            {/* Submit */}
             <div className="border-t border-slate-100 px-6 py-5">
               <button
                 type="button"
@@ -454,9 +447,9 @@ export default function BookingModal({
                   submitting ||
                   checkingSession ||
                   !validDate ||
-                  !validTimes
+                  !validTime
                 }
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-6 py-3.5 text-sm font-semibold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting ? (
                   <>

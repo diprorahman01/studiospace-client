@@ -5,12 +5,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarDays,
   CheckCircle2,
   Clock3,
   LoaderCircle,
-  MapPin,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -24,17 +24,16 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 type BookingStatus = "pending" | "confirmed" | "cancelled";
+type FilterType = "all" | BookingStatus;
 
 type Booking = {
   _id: string;
   studioId: string;
   studioTitle: string;
-  studioImage?: string;
   date: string;
   startTime: string;
   endTime: string;
   duration: number;
-  hourlyRate: number;
   rentalCost: number;
   securityDeposit: number;
   totalAmount: number;
@@ -49,9 +48,7 @@ type BookingsResponse = {
   message?: string;
 };
 
-type Filter = "all" | BookingStatus;
-
-const filters: { label: string; value: Filter }[] = [
+const filters: { label: string; value: FilterType }[] = [
   { label: "All Bookings", value: "all" },
   { label: "Pending", value: "pending" },
   { label: "Confirmed", value: "confirmed" },
@@ -64,55 +61,61 @@ function formatMoney(amount: number) {
   })}`;
 }
 
-function formatDate(date: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+function formatDate(value: string) {
+  const parts = value.split("-").map(Number);
 
-  const [year, month, day] = date.split("-").map(Number);
-  const parsed = new Date(year, month - 1, day);
+  if (
+    parts.length !== 3 ||
+    parts.some((part) => !Number.isFinite(part))
+  ) {
+    return value;
+  }
 
-  return parsed.toLocaleDateString("en-BD", {
+  return new Date(
+    parts[0],
+    parts[1] - 1,
+    parts[2]
+  ).toLocaleDateString("en-BD", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 }
 
-function formatTime(time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
+function formatTime(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
 
   if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-    return time;
+    return value;
   }
 
-  const hour = hours % 12 || 12;
-  const period = hours >= 12 ? "PM" : "AM";
-
-  return `${hour}:${String(minutes).padStart(2, "0")} ${period}`;
+  return `${hours % 12 || 12}:${String(minutes).padStart(
+    2,
+    "0"
+  )} ${hours >= 12 ? "PM" : "AM"}`;
 }
 
 function StatusBadge({ status }: { status: BookingStatus }) {
-  if (status === "confirmed") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
-        <CheckCircle2 size={14} />
-        Confirmed
-      </span>
-    );
-  }
+  const styles: Record<BookingStatus, string> = {
+    pending: "bg-amber-50 text-amber-700",
+    confirmed: "bg-green-50 text-green-700",
+    cancelled: "bg-red-50 text-red-700",
+  };
 
-  if (status === "cancelled") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
-        <XCircle size={14} />
-        Cancelled
-      </span>
-    );
-  }
+  const icons = {
+    pending: Clock3,
+    confirmed: CheckCircle2,
+    cancelled: XCircle,
+  };
+
+  const Icon = icons[status];
 
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
-      <Clock3 size={14} />
-      Pending
+    <span
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${styles[status]}`}
+    >
+      <Icon size={14} />
+      {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
 }
@@ -123,29 +126,35 @@ export default function MyBookingsPage() {
   const { data: session, isPending: checkingSession } =
     authClient.useSession();
 
+  const userId = session?.user?.id;
+
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<FilterType>("all");
   const [error, setError] = useState("");
-
-  const userId = session?.user?.id;
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(
+    null
+  );
 
   const loadBookings = useCallback(
     async (signal?: AbortSignal) => {
-      setError("");
-
       try {
-        const response = await fetch(`${API_URL}/api/bookings/my`, {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-          signal,
-        });
+        const response = await fetch(
+          `${API_URL}/api/bookings/my`,
+          {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+            signal,
+          }
+        );
 
         if (response.status === 401) {
-          toast.error("Please log in to view your bookings.");
-          router.replace("/login");
+          if (!signal?.aborted) {
+            router.replace("/login");
+          }
           return;
         }
 
@@ -158,17 +167,17 @@ export default function MyBookingsPage() {
         }
 
         if (!signal?.aborted) {
-          setBookings(result.data || []);
+          setBookings(result.data ?? []);
+          setError("");
         }
       } catch (err) {
         if (signal?.aborted) return;
 
-        const message =
+        setError(
           err instanceof Error
             ? err.message
-            : "Something went wrong.";
-
-        setError(message);
+            : "Could not load your bookings."
+        );
       } finally {
         if (!signal?.aborted) {
           setLoading(false);
@@ -180,19 +189,63 @@ export default function MyBookingsPage() {
   );
 
   useEffect(() => {
-    if (checkingSession) return;
+  if (checkingSession) return;
 
-    if (!userId) {
-      router.replace("/login");
-      return;
+  if (!userId) {
+    router.replace("/login");
+    return;
+  }
+
+  const controller = new AbortController();
+
+  async function fetchInitialBookings() {
+    try {
+      const response = await fetch(
+        `${API_URL}/api/bookings/my`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          signal: controller.signal,
+        }
+      );
+
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+
+      const result: BookingsResponse = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || "Failed to load bookings."
+        );
+      }
+
+      if (!controller.signal.aborted) {
+        setBookings(result.data ?? []);
+        setError("");
+      }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not load your bookings."
+      );
+    } finally {
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
+  }
 
-    const controller = new AbortController();
+  void fetchInitialBookings();
 
-    void loadBookings(controller.signal);
-
-    return () => controller.abort();
-  }, [checkingSession, userId, router, loadBookings]);
+  return () => controller.abort();
+}, [checkingSession, userId, router]);
 
   async function handleRefresh() {
     if (refreshing || loading) return;
@@ -201,7 +254,68 @@ export default function MyBookingsPage() {
     await loadBookings();
   }
 
-  const filteredBookings = bookings.filter(
+  async function handleCancelBooking(id: string) {
+    if (cancellingId) return;
+
+    setCancellingId(id);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/bookings/${id}/cancel`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const result: {
+        success: boolean;
+        message?: string;
+      } = await response.json();
+
+      if (response.status === 401) {
+        toast.error("Please log in again.");
+        setConfirmId(null);
+        router.replace("/login");
+        return;
+      }
+
+      if (!response.ok || !result.success) {
+        toast.error(
+          result.message || "Could not cancel the booking."
+        );
+        setConfirmId(null);
+        await loadBookings();
+        return;
+      }
+
+      setBookings((current) =>
+        current.map(
+          (booking): Booking =>
+            booking._id === id
+              ? { ...booking, status: "cancelled" }
+              : booking
+        )
+      );
+
+      setConfirmId(null);
+      toast.success(
+        result.message || "Booking cancelled successfully!"
+      );
+
+      await loadBookings();
+    } catch (err) {
+      console.error("Cancel booking error:", err);
+      toast.error("Unable to connect to the booking server.");
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
+  const visibleBookings = bookings.filter(
     (booking) =>
       filter === "all" || booking.status === filter
   );
@@ -227,7 +341,7 @@ export default function MyBookingsPage() {
 
   return (
     <main className="min-h-[80vh] bg-[#f8f7fd]">
-      {/* Header */}
+      {/* Page heading */}
       <section className="border-b border-violet-100 bg-white">
         <div className="mx-auto max-w-7xl px-5 py-12 sm:py-16">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium text-violet-700">
@@ -237,18 +351,18 @@ export default function MyBookingsPage() {
 
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="text-3xl font-extrabold text-slate-950 sm:text-4xl">
                 My Bookings
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-                View your studio reservations, check their
-                status, and keep track of your creative sessions.
+                Review your studio reservations, track their
+                status, and cancel pending bookings.
               </p>
             </div>
 
             <Link
               href="/studios"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-800"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800"
             >
               Explore Studios
               <ArrowRight size={17} />
@@ -258,43 +372,49 @@ export default function MyBookingsPage() {
       </section>
 
       <div className="mx-auto max-w-7xl px-5 py-10">
-        {/* Summary cards */}
+        {/* Summary */}
         <div className="mb-9 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
-              <CalendarDays size={22} />
-            </div>
-            <p className="text-sm text-slate-500">
-              Total Bookings
-            </p>
-            <p className="mt-2 text-3xl font-extrabold text-slate-950">
-              {bookings.length}
-            </p>
-          </div>
+          {[
+            {
+              title: "Total Bookings",
+              value: bookings.length,
+              icon: CalendarDays,
+              style: "bg-violet-50 text-violet-700",
+            },
+            {
+              title: "Pending Bookings",
+              value: pendingCount,
+              icon: Clock3,
+              style: "bg-amber-50 text-amber-700",
+            },
+            {
+              title: "Confirmed Bookings",
+              value: confirmedCount,
+              icon: CheckCircle2,
+              style: "bg-green-50 text-green-700",
+            },
+          ].map((item) => {
+            const Icon = item.icon;
 
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-              <Clock3 size={22} />
-            </div>
-            <p className="text-sm text-slate-500">
-              Pending Bookings
-            </p>
-            <p className="mt-2 text-3xl font-extrabold text-slate-950">
-              {pendingCount}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-green-50 text-green-700">
-              <CheckCircle2 size={22} />
-            </div>
-            <p className="text-sm text-slate-500">
-              Confirmed Bookings
-            </p>
-            <p className="mt-2 text-3xl font-extrabold text-slate-950">
-              {confirmedCount}
-            </p>
-          </div>
+            return (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"
+              >
+                <div
+                  className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${item.style}`}
+                >
+                  <Icon size={22} />
+                </div>
+                <p className="text-sm text-slate-500">
+                  {item.title}
+                </p>
+                <p className="mt-2 text-3xl font-extrabold text-slate-950">
+                  {item.value}
+                </p>
+              </div>
+            );
+          })}
         </div>
 
         {/* Filter toolbar */}
@@ -308,7 +428,7 @@ export default function MyBookingsPage() {
                 className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                   filter === item.value
                     ? "bg-violet-700 text-white"
-                    : "border border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:text-violet-700"
+                    : "border border-slate-200 bg-white text-slate-600 hover:text-violet-700"
                 }`}
               >
                 {item.label}
@@ -320,7 +440,7 @@ export default function MyBookingsPage() {
             type="button"
             onClick={handleRefresh}
             disabled={refreshing || loading}
-            className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50"
           >
             <RefreshCw
               size={16}
@@ -332,14 +452,14 @@ export default function MyBookingsPage() {
 
         {/* Loading */}
         {loading ? (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-white">
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl bg-white">
             <LoaderCircle className="h-9 w-9 animate-spin text-violet-700" />
             <p className="text-sm text-slate-500">
               Loading your bookings...
             </p>
           </div>
         ) : error ? (
-          /* Error */
+          /* API error */
           <div className="rounded-2xl border border-red-100 bg-white px-6 py-14 text-center">
             <XCircle className="mx-auto mb-4 h-10 w-10 text-red-500" />
             <h2 className="text-xl font-bold text-slate-950">
@@ -351,23 +471,16 @@ export default function MyBookingsPage() {
             <button
               type="button"
               onClick={handleRefresh}
-              className="mt-6 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-800"
+              className="mt-6 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
             >
               Try Again
             </button>
           </div>
-        ) : filteredBookings.length === 0 ? (
-          /* Empty state */
+        ) : visibleBookings.length === 0 ? (
+          /* Empty list */
           <div className="rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center shadow-sm">
             <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-violet-50">
-              {filter === "all" ? (
-                <Search size={35} className="text-violet-600" />
-              ) : (
-                <CalendarDays
-                  size={35}
-                  className="text-violet-600"
-                />
-              )}
+              <Search size={35} className="text-violet-600" />
             </div>
 
             <h2 className="text-xl font-bold text-slate-950">
@@ -378,14 +491,14 @@ export default function MyBookingsPage() {
 
             <p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-slate-500">
               {filter === "all"
-                ? "Your creative journey starts here. Discover a studio and book your first session."
-                : "There are no bookings matching this status right now."}
+                ? "Explore studios and book your first session."
+                : "There are no bookings matching this filter."}
             </p>
 
             {filter === "all" ? (
               <Link
                 href="/studios"
-                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-800"
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
               >
                 Find a Studio
                 <ArrowRight size={17} />
@@ -394,7 +507,7 @@ export default function MyBookingsPage() {
               <button
                 type="button"
                 onClick={() => setFilter("all")}
-                className="mt-6 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-800"
+                className="mt-6 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
               >
                 View All Bookings
               </button>
@@ -403,7 +516,7 @@ export default function MyBookingsPage() {
         ) : (
           /* Booking cards */
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-            {filteredBookings.map((booking) => (
+            {visibleBookings.map((booking) => (
               <article
                 key={booking._id}
                 className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md"
@@ -413,12 +526,10 @@ export default function MyBookingsPage() {
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-600">
                       Studio Reservation
                     </p>
-
                     <h2 className="text-xl font-bold text-slate-950">
                       {booking.studioTitle}
                     </h2>
                   </div>
-
                   <StatusBadge status={booking.status} />
                 </div>
 
@@ -456,7 +567,7 @@ export default function MyBookingsPage() {
                     </div>
 
                     <div className="flex items-start gap-3">
-                      <MapPin
+                      <ShieldCheck
                         size={19}
                         className="mt-0.5 shrink-0 text-violet-700"
                       />
@@ -466,7 +577,9 @@ export default function MyBookingsPage() {
                         </p>
                         <p className="mt-1 text-sm font-semibold text-slate-900">
                           {booking.duration}{" "}
-                          {booking.duration === 1 ? "hour" : "hours"}
+                          {booking.duration === 1
+                            ? "hour"
+                            : "hours"}
                         </p>
                       </div>
                     </div>
@@ -496,7 +609,6 @@ export default function MyBookingsPage() {
                         {formatMoney(booking.rentalCost)}
                       </span>
                     </div>
-
                     <div className="mt-2 flex justify-between gap-4 text-sm">
                       <span className="text-slate-500">
                         Security Deposit
@@ -521,17 +633,92 @@ export default function MyBookingsPage() {
 
                   <Link
                     href={`/studios/${booking.studioId}`}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-700 hover:bg-violet-100"
                   >
                     View Studio
                     <ArrowRight size={17} />
                   </Link>
+
+                  {booking.status === "pending" && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmId(booking._id)}
+                      disabled={Boolean(cancellingId)}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <XCircle size={17} />
+                      Cancel Booking
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
           </div>
         )}
       </div>
+
+      {/* Cancellation confirmation */}
+      {confirmId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="cancel-title"
+            aria-describedby="cancel-description"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <AlertTriangle size={24} />
+            </div>
+
+            <h2
+              id="cancel-title"
+              className="text-xl font-bold text-slate-950"
+            >
+              Cancel this booking?
+            </h2>
+
+            <p
+              id="cancel-description"
+              className="mt-3 text-sm leading-6 text-slate-600"
+            >
+              This will cancel your pending reservation and make
+              the time slot available again. This action cannot
+              be undone.
+            </p>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={Boolean(cancellingId)}
+                onClick={() => setConfirmId(null)}
+                className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 disabled:opacity-50"
+              >
+                Keep Booking
+              </button>
+
+              <button
+                type="button"
+                disabled={Boolean(cancellingId)}
+                onClick={() => void handleCancelBooking(confirmId)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {cancellingId ? (
+                  <>
+                    <LoaderCircle
+                      size={17}
+                      className="animate-spin"
+                    />
+                    Cancelling...
+                  </>
+                ) : (
+                  "Yes, Cancel Booking"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
