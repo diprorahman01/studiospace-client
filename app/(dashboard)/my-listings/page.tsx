@@ -23,7 +23,9 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   Wallet,
+  X,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -54,13 +56,13 @@ type OwnerStudio = {
 type StudioApiResponse = {
   success: boolean;
   message?: string;
-  count?: number;
   data?: OwnerStudio[];
+  activeBookings?: number;
 };
 
 type ListingFilter = "all" | "active" | "inactive";
 
-const filters: {
+const FILTERS: {
   label: string;
   value: ListingFilter;
 }[] = [
@@ -70,12 +72,9 @@ const filters: {
 ];
 
 function formatMoney(value: number) {
-  return `৳${Number(value || 0).toLocaleString(
-    "en-BD",
-    {
-      maximumFractionDigits: 2,
-    }
-  )}`;
+  return `৳${Number(value || 0).toLocaleString("en-BD", {
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function formatDate(value?: string) {
@@ -93,10 +92,6 @@ function formatDate(value?: string) {
     year: "numeric",
   });
 }
-
-// -------------------------
-// Studio status badge
-// -------------------------
 
 function ListingStatus({
   status,
@@ -120,10 +115,6 @@ function ListingStatus({
   );
 }
 
-// -------------------------
-// Studio image with fallback
-// -------------------------
-
 function StudioImage({
   src,
   title,
@@ -146,7 +137,7 @@ function StudioImage({
   }
 
   return (
-    // Supports external and local image URLs.
+    // Supports external and local image paths.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
@@ -156,10 +147,6 @@ function StudioImage({
     />
   );
 }
-
-// -------------------------
-// My Listings page
-// -------------------------
 
 export default function MyListingsPage() {
   const router = useRouter();
@@ -171,23 +158,25 @@ export default function MyListingsPage() {
 
   const userId = session?.user?.id;
 
-  const [studios, setStudios] = useState<
-    OwnerStudio[]
-  >([]);
-
+  const [studios, setStudios] =
+    useState<OwnerStudio[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] =
     useState(false);
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-
   const [filter, setFilter] =
     useState<ListingFilter>("all");
 
-  // -------------------------
-  // Fetch owner's studios
-  // -------------------------
+  // Delete confirmation state
+  const [studioToDelete, setStudioToDelete] =
+    useState<OwnerStudio | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // -----------------------------
+  // Fetch owner listings
+  // -----------------------------
 
   const loadStudios = useCallback(
     async (signal?: AbortSignal) => {
@@ -214,16 +203,9 @@ export default function MyListingsPage() {
       const result: StudioApiResponse =
         await response.json();
 
-      if (!result.success) {
+      if (!result.success || !Array.isArray(result.data)) {
         throw new Error(
-          result.message ||
-            "Could not load your studios."
-        );
-      }
-
-      if (!Array.isArray(result.data)) {
-        throw new Error(
-          "The server returned invalid studio data."
+          result.message || "Could not load your studios."
         );
       }
 
@@ -232,25 +214,18 @@ export default function MyListingsPage() {
     []
   );
 
-  // -------------------------
+  // -----------------------------
   // Initial data loading
-  // -------------------------
+  // -----------------------------
 
   useEffect(() => {
-    if (checkingSession) return;
-
-    if (!userId) {
-      router.replace("/login");
-      return;
-    }
+    if (checkingSession || !userId) return;
 
     const controller = new AbortController();
 
     async function fetchInitialStudios() {
       try {
-        const data = await loadStudios(
-          controller.signal
-        );
+        const data = await loadStudios(controller.signal);
 
         if (controller.signal.aborted) return;
 
@@ -284,22 +259,15 @@ export default function MyListingsPage() {
 
     void fetchInitialStudios();
 
-    return () => {
-      controller.abort();
-    };
-  }, [
-    checkingSession,
-    userId,
-    router,
-    loadStudios,
-  ]);
+    return () => controller.abort();
+  }, [checkingSession, userId, router, loadStudios]);
 
-  // -------------------------
+  // -----------------------------
   // Refresh listings
-  // -------------------------
+  // -----------------------------
 
   async function handleRefresh() {
-    if (loading || refreshing) return;
+    if (loading || refreshing || deleting) return;
 
     setRefreshing(true);
 
@@ -308,16 +276,12 @@ export default function MyListingsPage() {
 
       setStudios(data);
       setError("");
-
       toast.success("Listings updated.");
     } catch (err) {
       if (
         err instanceof Error &&
         err.message === "UNAUTHORIZED"
       ) {
-        toast.error(
-          "Your session expired. Please log in."
-        );
         router.replace("/login");
         return;
       }
@@ -332,9 +296,78 @@ export default function MyListingsPage() {
     }
   }
 
-  // -------------------------
-  // Listing statistics
-  // -------------------------
+  // -----------------------------
+  // Delete selected studio
+  // -----------------------------
+
+  async function handleDelete() {
+    if (!studioToDelete || deleting) return;
+
+    const selectedStudio = studioToDelete;
+
+    setDeleting(true);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/studios/${selectedStudio._id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+          },
+        }
+      );
+
+      const result: StudioApiResponse =
+        await response.json();
+
+      if (response.status === 401) {
+        toast.error("Please log in again.");
+        router.replace("/login");
+        return;
+      }
+
+      if (response.status === 409) {
+        toast.error(
+          result.message ||
+            "This studio has active bookings and cannot be deleted."
+        );
+        return;
+      }
+
+      if (!response.ok || !result.success) {
+        toast.error(
+          result.message || "Failed to delete studio."
+        );
+        return;
+      }
+
+      setStudios((current) =>
+        current.filter(
+          (studio) => studio._id !== selectedStudio._id
+        )
+      );
+
+      setStudioToDelete(null);
+
+      toast.success(
+        `"${selectedStudio.title}" deleted successfully.`
+      );
+    } catch (err) {
+      console.error("Delete studio error:", err);
+
+      toast.error(
+        "Could not connect to the server. Please try again."
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // -----------------------------
+  // Statistics
+  // -----------------------------
 
   const activeCount = studios.filter(
     (studio) => studio.status !== "inactive"
@@ -365,16 +398,15 @@ export default function MyListingsPage() {
     },
   ];
 
-  // -------------------------
-  // Search and status filter
-  // -------------------------
+  // -----------------------------
+  // Search and filter
+  // -----------------------------
 
   const visibleStudios = useMemo(() => {
     const term = search.trim().toLowerCase();
 
     return studios.filter((studio) => {
-      const status =
-        studio.status ?? "active";
+      const status = studio.status ?? "active";
 
       const matchesStatus =
         filter === "all" || status === filter;
@@ -382,20 +414,16 @@ export default function MyListingsPage() {
       const matchesSearch =
         !term ||
         studio.title.toLowerCase().includes(term) ||
-        studio.category.toLowerCase().includes(
-          term
-        ) ||
-        studio.location.toLowerCase().includes(
-          term
-        );
+        studio.category.toLowerCase().includes(term) ||
+        studio.location.toLowerCase().includes(term);
 
       return matchesStatus && matchesSearch;
     });
   }, [studios, search, filter]);
 
-  // -------------------------
-  // Authentication loading
-  // -------------------------
+  // -----------------------------
+  // Authentication state
+  // -----------------------------
 
   if (checkingSession || !userId) {
     return (
@@ -404,7 +432,6 @@ export default function MyListingsPage() {
           size={34}
           className="animate-spin text-violet-700"
         />
-
         <p className="text-sm text-slate-500">
           Checking your account...
         </p>
@@ -414,8 +441,7 @@ export default function MyListingsPage() {
 
   return (
     <main className="min-h-[80vh] bg-[#f8f7fd]">
-      {/* Page header */}
-
+      {/* Header */}
       <section className="border-b border-violet-100 bg-white">
         <div className="mx-auto max-w-7xl px-5 py-12 sm:py-16">
           <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-violet-700">
@@ -428,17 +454,15 @@ export default function MyListingsPage() {
               <h1 className="text-3xl font-extrabold text-slate-950 sm:text-4xl">
                 My Listings
               </h1>
-
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-                Manage your creative studios, update
-                listing information, and review your
-                published spaces in one place.
+                View, edit, and manage your creative
+                studio listings.
               </p>
             </div>
 
             <Link
               href="/add-studio"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-800"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800"
             >
               <Plus size={18} />
               Add New Studio
@@ -449,7 +473,6 @@ export default function MyListingsPage() {
 
       <div className="mx-auto max-w-7xl px-5 py-10">
         {/* Summary cards */}
-
         <div className="mb-9 grid gap-4 sm:grid-cols-3">
           {summaryCards.map((item) => {
             const Icon = item.icon;
@@ -477,21 +500,18 @@ export default function MyListingsPage() {
           })}
         </div>
 
-        {/* Search and filters */}
-
+        {/* Filters and search */}
         <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div className="flex flex-wrap gap-2">
-            {filters.map((item) => (
+            {FILTERS.map((item) => (
               <button
                 key={item.value}
                 type="button"
-                onClick={() =>
-                  setFilter(item.value)
-                }
-                className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                onClick={() => setFilter(item.value)}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${
                   filter === item.value
                     ? "bg-violet-700 text-white"
-                    : "border border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:text-violet-700"
+                    : "border border-slate-200 bg-white text-slate-600 hover:border-violet-300"
                 }`}
               >
                 {item.label}
@@ -505,7 +525,6 @@ export default function MyListingsPage() {
                 size={18}
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
               />
-
               <input
                 type="search"
                 value={search}
@@ -514,57 +533,48 @@ export default function MyListingsPage() {
                 }
                 placeholder="Search your studios..."
                 aria-label="Search your studios"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm text-slate-900 outline-none focus:border-violet-600 sm:w-64"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm outline-none focus:border-violet-600 sm:w-64"
               />
             </div>
 
             <button
               type="button"
               onClick={handleRefresh}
-              disabled={loading || refreshing}
+              disabled={loading || refreshing || deleting}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <RefreshCw
                 size={16}
-                className={
-                  refreshing ? "animate-spin" : ""
-                }
+                className={refreshing ? "animate-spin" : ""}
               />
               Refresh
             </button>
           </div>
         </div>
 
-        {/* Loading state */}
-
+        {/* Main content */}
         {loading ? (
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl bg-white">
             <LoaderCircle
               size={34}
               className="animate-spin text-violet-700"
             />
-
             <p className="text-sm text-slate-500">
               Loading your studio listings...
             </p>
           </div>
         ) : error ? (
-          /* Error state */
-
           <div className="rounded-2xl border border-red-100 bg-white px-6 py-14 text-center">
             <XCircle
               size={42}
               className="mx-auto mb-4 text-red-500"
             />
-
             <h2 className="text-xl font-bold text-slate-950">
               Unable to load listings
             </h2>
-
             <p className="mt-2 text-sm text-slate-500">
               {error}
             </p>
-
             <button
               type="button"
               onClick={handleRefresh}
@@ -574,8 +584,6 @@ export default function MyListingsPage() {
             </button>
           </div>
         ) : visibleStudios.length === 0 ? (
-          /* Empty state */
-
           <div className="rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center shadow-sm">
             <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-violet-50">
               <Building2
@@ -592,14 +600,14 @@ export default function MyListingsPage() {
 
             <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-slate-500">
               {studios.length === 0
-                ? "Create your first studio listing and start sharing your creative workspace with others."
+                ? "Create your first studio listing and start sharing your workspace with creators."
                 : "Try another search term or switch to a different filter."}
             </p>
 
             {studios.length === 0 ? (
               <Link
                 href="/add-studio"
-                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-800"
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
               >
                 <Plus size={17} />
                 Add Your First Studio
@@ -618,32 +626,23 @@ export default function MyListingsPage() {
             )}
           </div>
         ) : (
-          /* Studio listing cards */
-
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {visibleStudios.map((studio) => (
               <article
                 key={studio._id}
                 className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md"
               >
-                {/* Studio image and status */}
-
                 <div className="relative">
                   <StudioImage
                     src={studio.image}
                     title={studio.title}
                   />
-
                   <div className="absolute right-4 top-4">
-                    <ListingStatus
-                      status={studio.status}
-                    />
+                    <ListingStatus status={studio.status} />
                   </div>
                 </div>
 
                 <div className="space-y-5 p-6">
-                  {/* Studio information */}
-
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-violet-700">
                       {studio.category}
@@ -662,18 +661,13 @@ export default function MyListingsPage() {
                     </p>
                   </div>
 
-                  {/* Pricing and capacity */}
-
                   <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4">
                     <div>
                       <p className="mb-1 text-xs text-slate-500">
                         Hourly Rate
                       </p>
-
                       <p className="text-base font-bold text-violet-700">
-                        {formatMoney(
-                          studio.hourlyRate
-                        )}
+                        {formatMoney(studio.hourlyRate)}
                       </p>
                     </div>
 
@@ -681,7 +675,6 @@ export default function MyListingsPage() {
                       <p className="mb-1 text-xs text-slate-500">
                         Capacity
                       </p>
-
                       <p className="text-base font-semibold text-slate-950">
                         {studio.maxCapacity != null
                           ? `${studio.maxCapacity} people`
@@ -690,14 +683,10 @@ export default function MyListingsPage() {
                     </div>
                   </div>
 
-                  {/* Date and deposit */}
-
                   <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
                     <span className="flex items-center gap-1.5">
                       <CalendarDays size={15} />
-                      {formatDate(
-                        studio.createdAt
-                      )}
+                      {formatDate(studio.createdAt)}
                     </span>
 
                     <span className="flex items-center gap-1.5">
@@ -709,53 +698,152 @@ export default function MyListingsPage() {
                     </span>
                   </div>
 
-                  {/* Ownership note */}
-
                   <div className="flex items-start gap-2 rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 text-xs leading-5 text-violet-800">
                     <ShieldCheck
                       size={16}
                       className="mt-0.5 shrink-0"
                     />
-
-                    This listing belongs to your
-                    StudioSpace account.
+                    This listing belongs to your StudioSpace account.
                   </div>
 
-                  {/* View and Edit buttons */}
-
+                  {/* View and Edit */}
                   <div className="grid grid-cols-2 gap-3">
                     <Link
                       href={`/studios/${studio._id}`}
-                      className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 px-3 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-50"
+                      className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 px-3 py-3 text-sm font-semibold text-violet-700 hover:bg-violet-50"
                     >
-                      <Eye
-                        size={17}
-                        className="shrink-0"
-                      />
+                      <Eye size={17} />
                       View Studio
                     </Link>
 
                     <Link
                       href={`/edit-studio/${studio._id}`}
-                      className="flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-3 py-3 text-sm font-semibold text-white transition hover:bg-violet-800"
+                      className="flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-3 py-3 text-sm font-semibold text-white hover:bg-violet-800"
                     >
-                      <Pencil
-                        size={16}
-                        className="shrink-0"
-                      />
+                      <Pencil size={16} />
                       Edit Studio
                       <ArrowRight
                         size={15}
-                        className="hidden shrink-0 sm:block"
+                        className="hidden sm:block"
                       />
                     </Link>
                   </div>
+
+                  {/* Delete */}
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => setStudioToDelete(studio)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                  >
+                    <Trash2 size={17} />
+                    Delete Studio
+                  </button>
                 </div>
               </article>
             ))}
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      {studioToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !deleting
+            ) {
+              setStudioToDelete(null);
+            }
+          }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            aria-describedby="delete-dialog-description"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl sm:p-8"
+          >
+            <div className="mb-5 flex items-start justify-between">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
+                <Trash2
+                  size={26}
+                  className="text-red-600"
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setStudioToDelete(null)}
+                aria-label="Close confirmation dialog"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <h2
+              id="delete-dialog-title"
+              className="text-2xl font-bold text-slate-950"
+            >
+              Delete Studio?
+            </h2>
+
+            <p
+              id="delete-dialog-description"
+              className="mt-3 text-sm leading-7 text-slate-600"
+            >
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-slate-900">
+                {studioToDelete.title}
+              </strong>
+              ? This action cannot be undone.
+            </p>
+
+            <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-800">
+              Studios with pending or confirmed bookings
+              cannot be deleted.
+            </p>
+
+            <div className="mt-7 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setStudioToDelete(null)}
+                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Keep Studio
+              </button>
+
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <LoaderCircle
+                      size={17}
+                      className="animate-spin"
+                    />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={17} />
+                    Yes, Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
