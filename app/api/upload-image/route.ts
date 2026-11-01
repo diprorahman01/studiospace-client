@@ -2,8 +2,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
-export const runtime = "nodejs";
-
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 const ALLOWED_TYPES = new Set([
@@ -93,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     const bytes = Buffer.from(await file.arrayBuffer());
 
-    // Basic file signature validation.
+    // Validate common image file signatures.
     const isJpeg =
       bytes.length >= 3 &&
       bytes[0] === 0xff &&
@@ -117,10 +115,8 @@ export async function POST(request: NextRequest) {
 
     const isWebp =
       bytes.length >= 12 &&
-      bytes.subarray(0, 4).toString("ascii") ===
-        "RIFF" &&
-      bytes.subarray(8, 12).toString("ascii") ===
-        "WEBP";
+      bytes.subarray(0, 4).toString("ascii") === "RIFF" &&
+      bytes.subarray(8, 12).toString("ascii") === "WEBP";
 
     const validSignature =
       (file.type === "image/jpeg" && isJpeg) ||
