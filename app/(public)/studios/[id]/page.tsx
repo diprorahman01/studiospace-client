@@ -1,9 +1,29 @@
-// TODO: Implement Studio Details according to the StudioSpace design pack.
-export default function Page() {
-  return (
-    <main className="mx-auto max-w-6xl px-4 py-12">
-      <h1 className="text-3xl font-bold">Studio Details</h1>
-      <p className="mt-3 text-muted-foreground">Studio details and booking modal</p>
-    </main>
-  );
+
+import { notFound } from "next/navigation";
+import StudioDetails from "@/components/studios/StudioDetails";
+import { getStudioById } from "@/lib/api/studios";
+
+interface StudioDetailsPageProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+export default async function StudioDetailsPage({
+  params,
+}: StudioDetailsPageProps) {
+  const { id } = await params;
+
+  // MongoDB ObjectIds contain 24 hexadecimal characters
+  if (!/^[0-9a-fA-F]{24}$/.test(id)) {
+    notFound();
+  }
+
+  const studio = await getStudioById(id);
+
+  if (!studio) {
+    notFound();
+  }
+
+  return <StudioDetails studio={studio} />;
 }
