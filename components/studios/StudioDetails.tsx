@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
-  CalendarDays,
   Camera,
   Clock3,
   MapPin,
@@ -16,8 +15,11 @@ import {
   Star,
   Users,
   Wifi,
+  CalendarDays,
 } from "lucide-react";
+
 import type { Studio } from "@/types/studio";
+import BookingModal from "@/components/bookings/BookingModal";
 
 interface StudioDetailsProps {
   studio: Studio;
@@ -62,7 +64,7 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0">
-            {/* Studio image gallery */}
+            {/* Image gallery */}
             <div className="relative h-[280px] overflow-hidden rounded-2xl bg-slate-200 sm:h-[420px] lg:h-[480px]">
               <Image
                 src={images[activeImage]}
@@ -100,7 +102,7 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
               </span>
             </div>
 
-            {/* Thumbnail gallery */}
+            {/* Image thumbnails */}
             {images.length > 1 && (
               <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
                 {images.map((image, index) => (
@@ -127,7 +129,7 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
               </div>
             )}
 
-            {/* Studio information */}
+            {/* Main studio information */}
             <div className="mt-7 rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="rounded-full bg-violet-100 px-3 py-1.5 text-xs font-semibold text-violet-700">
@@ -182,7 +184,7 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
                 </div>
               </div>
 
-              {/* Tabs */}
+              {/* Information tabs */}
               <div className="mt-9 flex gap-6 overflow-x-auto border-b border-slate-200">
                 {tabs.map((tab) => (
                   <button
@@ -245,11 +247,13 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
                     <h2 className="text-xl font-bold text-slate-950">
                       Availability
                     </h2>
+
                     <div className="mt-5 flex items-start gap-3 rounded-xl bg-violet-50 p-5">
                       <CalendarDays className="shrink-0 text-violet-700" />
                       <p className="text-sm leading-7 text-slate-600">
-                        Date and time selection will be available when
-                        the booking system is implemented.
+                        Choose your preferred date and time using
+                        the booking button. Availability
+                        verification will be added with the booking API.
                       </p>
                     </div>
                   </div>
@@ -260,6 +264,7 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
                     <h2 className="text-xl font-bold text-slate-950">
                       Studio Reviews
                     </h2>
+
                     <p className="mt-4 text-slate-600">
                       Verified customer reviews have not been added yet.
                     </p>
@@ -295,19 +300,8 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
                 </span>
               </div>
 
-              <button
-                type="button"
-                disabled
-                title="Booking functionality will be added next"
-                className="mt-7 flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3.5 font-semibold text-white opacity-60"
-              >
-                <CalendarDays size={19} />
-                Book Workspace Now
-              </button>
-
-              <p className="mt-3 text-center text-xs text-slate-500">
-                Online booking will be available soon.
-              </p>
+              {/* New booking modal */}
+              <BookingModal studio={studio} />
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -324,6 +318,7 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
                   <p className="font-semibold text-slate-900">
                     {studio.ownerName || "Studio Host"}
                   </p>
+
                   <p className="text-xs text-slate-500">
                     StudioSpace Host
                   </p>
