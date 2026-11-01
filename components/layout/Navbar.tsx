@@ -1,14 +1,12 @@
-
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Aperture,
   Menu,
   X,
-  UserRound,
   LayoutDashboard,
   CalendarDays,
   LogOut,
@@ -25,7 +23,7 @@ const navLinks = [
   { name: "About Us", href: "/about-us" },
 ];
 
-export default function Navbar() {
+function NavbarContent() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
@@ -380,5 +378,13 @@ export default function Navbar() {
         </div>
       )}
     </header>
+  );
+}
+
+export default function Navbar() {
+  return (
+    <Suspense fallback={<div className="h-20 border-b border-slate-200 bg-white" />}>
+      <NavbarContent />
+    </Suspense>
   );
 }
