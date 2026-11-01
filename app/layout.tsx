@@ -20,16 +20,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-[#f8f7fd] text-slate-900 antialiased">
+      <body
+        suppressHydrationWarning
+        className="min-h-screen bg-[#f8f7fd] text-slate-900 antialiased"
+      >
         <ThemeProvider>
           <Navbar />
           <main>{children}</main>
           <Footer />
           <ThemeToggle />
-          <Toaster
-            richColors
-            position="top-right"
-          />
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>
