@@ -6,12 +6,21 @@ import type {
   StudiosResponse,
 } from "@/types/studio";
 
-// Server-side requests should use the actual
-// Express backend, not the Vercel frontend domain.
-const API_URL = (
-  process.env.API_SERVER_URL ||
-  "http://localhost:5000"
-).replace(/\/$/, "");
+/*
+  Local development:
+  Always use the localhost Express backend.
+
+  Production:
+  Use the deployed Express backend URL.
+*/
+
+const API_URL =
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:5000"
+    : (
+        process.env.API_SERVER_URL ||
+        "http://localhost:5000"
+      ).replace(/\/$/, "");
 
 interface StudioDetailsResponse {
   success: boolean;
@@ -24,9 +33,7 @@ async function fetchStudios(
   const response = await fetch(
     `${API_URL}${endpoint}`,
     {
-      next: {
-        revalidate: 60,
-      },
+      cache: "no-store",
     }
   );
 
@@ -51,7 +58,7 @@ async function fetchStudios(
   return result.data;
 }
 
-// Fetch featured studios.
+// Homepage: only the original featured studios.
 export async function getFeaturedStudios(): Promise<
   Studio[]
 > {
@@ -60,7 +67,7 @@ export async function getFeaturedStudios(): Promise<
   );
 }
 
-// Fetch all studios.
+// Explore Studios: all studios in the database.
 export async function getAllStudios(): Promise<
   Studio[]
 > {
@@ -69,16 +76,14 @@ export async function getAllStudios(): Promise<
   );
 }
 
-// Fetch studio details.
+// Studio details page.
 export async function getStudioById(
   id: string
 ): Promise<Studio | null> {
   const response = await fetch(
     `${API_URL}/api/studios/${encodeURIComponent(id)}`,
     {
-      next: {
-        revalidate: 60,
-      },
+      cache: "no-store",
     }
   );
 

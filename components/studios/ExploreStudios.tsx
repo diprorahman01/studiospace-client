@@ -7,12 +7,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
+  Building2,
   MapPin,
+  RotateCcw,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Star,
-  RotateCcw,
-  Building2,
 } from "lucide-react";
 import type { Studio } from "@/types/studio";
 
@@ -30,19 +31,26 @@ const categories = [
   "Creative Workspace",
 ];
 
+function formatPrice(value: number) {
+  return new Intl.NumberFormat("en-BD", {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 export default function ExploreStudios({
   studios,
 }: ExploreStudiosProps) {
   const searchParams = useSearchParams();
 
-  const initialCategory = searchParams.get("category") || "All Categories";
+  const categoryFromURL =
+    searchParams.get("category") || "All Categories";
+
+  const initialCategory = categories.includes(categoryFromURL)
+    ? categoryFromURL
+    : "All Categories";
 
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState(
-    categories.includes(initialCategory)
-      ? initialCategory
-      : "All Categories"
-  );
+  const [category, setCategory] = useState(initialCategory);
   const [location, setLocation] = useState("All Locations");
   const [sortBy, setSortBy] = useState("newest");
 
@@ -53,18 +61,25 @@ export default function ExploreStudios({
     ];
   }, [studios]);
 
+  const activeCategory = searchParams.has("category")
+    ? category === initialCategory
+      ? categoryFromURL
+      : category
+    : category;
+
   const filteredStudios = useMemo(() => {
     const searchText = search.trim().toLowerCase();
 
-    const filtered = studios.filter((studio) => {
+    const results = studios.filter((studio) => {
       const matchesSearch =
         studio.title.toLowerCase().includes(searchText) ||
         studio.location.toLowerCase().includes(searchText) ||
-        studio.category.toLowerCase().includes(searchText);
+        studio.category.toLowerCase().includes(searchText) ||
+        studio.overview?.toLowerCase().includes(searchText);
 
       const matchesCategory =
-        category === "All Categories" ||
-        studio.category === category;
+        activeCategory === "All Categories" ||
+        studio.category === activeCategory;
 
       const matchesLocation =
         location === "All Locations" ||
@@ -73,7 +88,7 @@ export default function ExploreStudios({
       return matchesSearch && matchesCategory && matchesLocation;
     });
 
-    return filtered.sort((a, b) => {
+    return [...results].sort((a, b) => {
       if (sortBy === "price-low") {
         return a.hourlyRate - b.hourlyRate;
       }
@@ -91,70 +106,127 @@ export default function ExploreStudios({
         new Date(a.createdAt).getTime()
       );
     });
-  }, [studios, search, category, location, sortBy]);
+  }, [studios, search, activeCategory, location, sortBy]);
 
   function resetFilters() {
     setSearch("");
     setCategory("All Categories");
     setLocation("All Locations");
     setSortBy("newest");
+
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname
+    );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f7fd]">
-      {/* Page heading */}
-      <section className="bg-gradient-to-r from-[#191136] via-[#2b185c] to-[#111026] px-5 py-20 text-white">
-        <div className="mx-auto max-w-7xl text-center">
-          <span className="inline-block rounded-full border border-violet-400/30 bg-violet-500/20 px-4 py-2 text-sm font-medium text-violet-200">
+    <main className="min-h-screen">
+      {/* ====================================
+          CINEMATIC EXPLORE STUDIOS BANNER
+          ==================================== */}
+
+      <section
+        aria-labelledby="explore-heading"
+        className="relative isolate flex min-h-[360px] items-center justify-center overflow-hidden px-5 py-20 text-center text-white sm:min-h-[390px]"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(13,8,29,0.88) 0%, rgba(30,13,54,0.78) 50%, rgba(17,10,36,0.72) 100%), url('/images/studios/explore-banner.jpg')",
+          backgroundPosition: "center",
+          backgroundSize: "cover",
+          backgroundRepeat: "no-repeat",
+          backgroundColor: "#151026",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_65%,rgba(144,61,208,0.15),transparent_65%)]"
+        />
+
+        <div className="relative z-10 mx-auto max-w-3xl">
+          <span className="inline-flex items-center gap-2 rounded-full border border-violet-300/30 bg-white/10 px-5 py-2 text-xs font-bold tracking-wide text-violet-100 backdrop-blur-md">
+            <Sparkles size={15} />
             Find Your Perfect Creative Space
           </span>
 
-          <h1 className="mt-5 text-4xl font-extrabold tracking-tight md:text-5xl">
+          <h1
+            id="explore-heading"
+            className="mt-6 text-4xl font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl"
+          >
             Explore Studios
           </h1>
 
-          <p className="mx-auto mt-5 max-w-2xl text-slate-300">
-            Discover photography studios, podcast lounges,
-            music suites, film stages, and creative workspaces
-            for your next project.
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-8 text-[#e9dff6] sm:text-base">
+            Discover inspiring photography studios,
+            podcast lounges, music suites, film stages,
+            and creative workspaces for your next project.
           </p>
+
+          <div className="mx-auto mt-7 h-1 w-20 rounded-full bg-gradient-to-r from-violet-400 to-fuchsia-400" />
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-12">
-        {/* Search and filters */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* ====================================
+          SEARCH, FILTERS AND RESULTS
+          ==================================== */}
+
+      <section className="mx-auto max-w-7xl px-5 py-12 md:py-16">
+        <div
+          className="rounded-[22px] border p-5 shadow-sm sm:p-6"
+          style={{
+            background: "var(--ss-surface)",
+            borderColor: "var(--ss-border)",
+            boxShadow: "var(--ss-shadow)",
+          }}
+        >
           <div className="relative">
             <Search
               size={19}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+              className="absolute left-4 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--ss-muted)" }}
             />
 
             <input
-              type="text"
+              type="search"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
               placeholder="Search studios by name, category or location..."
               aria-label="Search studios"
-              className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 outline-none transition focus:border-violet-500"
+              className="w-full rounded-xl border py-3 pl-12 pr-4 text-sm outline-none transition focus:border-violet-500"
+              style={{
+                background: "var(--ss-surface-alt)",
+                borderColor: "var(--ss-border)",
+                color: "var(--ss-ink)",
+              }}
             />
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Category */}
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label
                 htmlFor="studio-category"
-                className="mb-2 block text-sm font-medium text-slate-700"
+                className="mb-2 block text-sm font-semibold"
+                style={{ color: "var(--ss-ink)" }}
               >
                 Category
               </label>
 
               <select
                 id="studio-category"
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-violet-500"
+                value={activeCategory}
+                onChange={(event) =>
+                  setCategory(event.target.value)
+                }
+                className="w-full rounded-xl border px-3 py-3 text-sm outline-none focus:border-violet-500"
+                style={{
+                  background: "var(--ss-surface-alt)",
+                  borderColor: "var(--ss-border)",
+                  color: "var(--ss-ink)",
+                }}
               >
                 {categories.map((item) => (
                   <option key={item} value={item}>
@@ -164,11 +236,11 @@ export default function ExploreStudios({
               </select>
             </div>
 
-            {/* Location */}
             <div>
               <label
                 htmlFor="studio-location"
-                className="mb-2 block text-sm font-medium text-slate-700"
+                className="mb-2 block text-sm font-semibold"
+                style={{ color: "var(--ss-ink)" }}
               >
                 Location
               </label>
@@ -176,8 +248,15 @@ export default function ExploreStudios({
               <select
                 id="studio-location"
                 value={location}
-                onChange={(event) => setLocation(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-violet-500"
+                onChange={(event) =>
+                  setLocation(event.target.value)
+                }
+                className="w-full rounded-xl border px-3 py-3 text-sm outline-none focus:border-violet-500"
+                style={{
+                  background: "var(--ss-surface-alt)",
+                  borderColor: "var(--ss-border)",
+                  color: "var(--ss-ink)",
+                }}
               >
                 {locations.map((item) => (
                   <option key={item} value={item}>
@@ -187,11 +266,11 @@ export default function ExploreStudios({
               </select>
             </div>
 
-            {/* Sorting */}
             <div>
               <label
                 htmlFor="studio-sort"
-                className="mb-2 block text-sm font-medium text-slate-700"
+                className="mb-2 block text-sm font-semibold"
+                style={{ color: "var(--ss-ink)" }}
               >
                 Sort By
               </label>
@@ -199,22 +278,39 @@ export default function ExploreStudios({
               <select
                 id="studio-sort"
                 value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 outline-none focus:border-violet-500"
+                onChange={(event) =>
+                  setSortBy(event.target.value)
+                }
+                className="w-full rounded-xl border px-3 py-3 text-sm outline-none focus:border-violet-500"
+                style={{
+                  background: "var(--ss-surface-alt)",
+                  borderColor: "var(--ss-border)",
+                  color: "var(--ss-ink)",
+                }}
               >
                 <option value="newest">Newest First</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="rating">Highest Rated</option>
+                <option value="price-low">
+                  Price: Low to High
+                </option>
+                <option value="price-high">
+                  Price: High to Low
+                </option>
+                <option value="rating">
+                  Highest Rated
+                </option>
               </select>
             </div>
 
-            {/* Reset */}
             <div className="flex items-end">
               <button
                 type="button"
                 onClick={resetFilters}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-bold transition hover:opacity-80"
+                style={{
+                  background: "var(--ss-surface-alt)",
+                  borderColor: "var(--ss-border)",
+                  color: "var(--ss-accent)",
+                }}
               >
                 <RotateCcw size={16} />
                 Reset Filters
@@ -224,100 +320,174 @@ export default function ExploreStudios({
         </div>
 
         {/* Results heading */}
-        <div className="my-9 flex flex-wrap items-center justify-between gap-4">
+
+        <div className="my-10 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-950">
+            <span className="ss-kicker">
+              <Sparkles size={14} />
+              Creative Spaces
+            </span>
+
+            <h2 className="ss-heading mt-4">
               Available Studios
             </h2>
 
-            <p className="mt-1 text-sm text-slate-500">
+            <p
+              className="mt-2 text-sm"
+              style={{ color: "var(--ss-muted)" }}
+            >
               {filteredStudios.length}{" "}
-              {filteredStudios.length === 1 ? "studio" : "studios"} found
+              {filteredStudios.length === 1
+                ? "studio"
+                : "studios"}{" "}
+              found
             </p>
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm text-slate-600 shadow-sm">
+          <span
+            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium"
+            style={{
+              background: "var(--ss-surface)",
+              borderColor: "var(--ss-border)",
+              color: "var(--ss-muted)",
+            }}
+          >
             <SlidersHorizontal size={16} />
             Browse Spaces
-          </div>
+          </span>
         </div>
 
-        {/* Studio results */}
-        {filteredStudios.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center">
-            <Building2 className="mx-auto h-14 w-14 text-violet-400" />
+        {/* Results */}
 
-            <h3 className="mt-5 text-xl font-bold text-slate-900">
+        {filteredStudios.length === 0 ? (
+          <div className="ss-card px-6 py-20 text-center">
+            <Building2
+              size={52}
+              className="mx-auto"
+              style={{ color: "var(--ss-accent)" }}
+            />
+
+            <h3
+              className="mt-5 text-xl font-bold"
+              style={{ color: "var(--ss-ink)" }}
+            >
               No studios found
             </h3>
 
-            <p className="mt-3 text-slate-500">
+            <p
+              className="mt-3 text-sm"
+              style={{ color: "var(--ss-muted)" }}
+            >
               Try changing your search or filters.
             </p>
 
             <button
               type="button"
               onClick={resetFilters}
-              className="mt-6 rounded-lg bg-violet-700 px-6 py-3 text-sm font-semibold text-white hover:bg-violet-800"
+              className="ss-cta-primary mt-6"
             >
               Clear Filters
             </button>
           </div>
         ) : (
-          <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {filteredStudios.map((studio) => (
               <article
                 key={studio._id}
-                className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+                className="ss-card group flex h-full flex-col"
               >
-                <div className="relative h-56 overflow-hidden bg-slate-100">
-                  <Image
-                    src={studio.image}
-                    alt={studio.title}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-cover transition duration-500 group-hover:scale-105"
+                <Link
+                  href={`/studios/${studio._id}`}
+                  aria-label={`View ${studio.title}`}
+                  className="relative block h-[225px] overflow-hidden bg-violet-200/20 sm:h-[235px]"
+                >
+                  {studio.image ? (
+                    <Image
+                      src={studio.image}
+                      alt={studio.title}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <Building2
+                        size={40}
+                        style={{
+                          color: "var(--ss-accent)",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"
                   />
 
-                  <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-violet-700">
+                  <span className="absolute left-4 top-4 max-w-[78%] truncate rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-[#682c9b] shadow-sm">
                     {studio.category}
                   </span>
 
-                  {typeof studio.rating === "number" && (
-                    <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm">
-                      <Star
-                        size={14}
-                        className="fill-amber-400 text-amber-400"
-                      />
-                      {studio.rating}
-                    </div>
-                  )}
-                </div>
+                  {typeof studio.rating === "number" &&
+                    studio.rating > 0 && (
+                      <span className="absolute bottom-4 right-4 flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-[#251931] shadow-sm">
+                        <Star
+                          size={14}
+                          className="fill-amber-400 text-amber-500"
+                        />
+                        {studio.rating.toFixed(1)}
+                      </span>
+                    )}
+                </Link>
 
-                <div className="p-5">
-                  <h3 className="text-lg font-bold text-slate-950 group-hover:text-violet-700">
-                    {studio.title}
-                  </h3>
+                <div className="flex flex-1 flex-col p-5 sm:p-6">
+                  <Link href={`/studios/${studio._id}`}>
+                    <h3
+                      className="line-clamp-2 text-lg font-extrabold transition group-hover:opacity-75"
+                      style={{ color: "var(--ss-ink)" }}
+                    >
+                      {studio.title}
+                    </h3>
+                  </Link>
 
-                  <div className="mt-3 flex items-center gap-2 text-sm text-slate-500">
-                    <MapPin size={16} />
-                    {studio.location}
+                  <div
+                    className="mt-3 flex items-start gap-2 text-sm"
+                    style={{ color: "var(--ss-muted)" }}
+                  >
+                    <MapPin
+                      size={16}
+                      className="mt-0.5 shrink-0"
+                    />
+                    <span>{studio.location}</span>
                   </div>
 
-                  <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5">
+                  <div
+                    className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t pt-5"
+                    style={{
+                      borderColor: "var(--ss-border)",
+                      marginTop: "24px",
+                    }}
+                  >
                     <div>
-                      <span className="text-2xl font-extrabold text-violet-700">
-                        ${studio.hourlyRate}
+                      <span
+                        className="text-2xl font-extrabold"
+                        style={{ color: "var(--ss-accent)" }}
+                      >
+                        ৳{formatPrice(studio.hourlyRate)}
                       </span>
 
-                      <span className="text-sm text-slate-500">
-                        {" "}/ hour
+                      <span
+                        className="ml-1 text-xs"
+                        style={{ color: "var(--ss-muted)" }}
+                      >
+                        / hour
                       </span>
                     </div>
 
                     <Link
                       href={`/studios/${studio._id}`}
-                      className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-800"
+                      className="ss-cta-primary px-4 py-2.5 text-xs"
                     >
                       View Details
                       <ArrowRight size={15} />

@@ -2,39 +2,101 @@
 import { Suspense } from "react";
 import ExploreStudios from "@/components/studios/ExploreStudios";
 import { getAllStudios } from "@/lib/api/studios";
+import type { Studio } from "@/types/studio";
 
-export default async function StudiosPage() {
-  let studios;
+// Loading state while the studio data is fetched.
+function StudiosLoading() {
+  return (
+    <main className="min-h-screen">
+      <section className="relative flex min-h-[340px] items-center justify-center bg-[#151026] px-5 text-center">
+        <div>
+          <div className="mx-auto h-7 w-48 animate-pulse rounded-full bg-violet-400/20" />
+
+          <div className="mx-auto mt-6 h-12 w-72 max-w-full animate-pulse rounded-xl bg-violet-300/20" />
+
+          <p className="mt-6 text-sm text-violet-200">
+            Finding creative studios...
+          </p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-12">
+        <div
+          className="h-32 animate-pulse rounded-2xl border"
+          style={{
+            background: "var(--ss-surface)",
+            borderColor: "var(--ss-border)",
+          }}
+        />
+
+        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div
+              key={index}
+              className="h-96 animate-pulse rounded-2xl border"
+              style={{
+                background: "var(--ss-surface)",
+                borderColor: "var(--ss-border)",
+              }}
+            />
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+// Display this only if loading the API data fails.
+function StudiosError() {
+  return (
+    <main className="flex min-h-[60vh] flex-col items-center justify-center px-5 text-center">
+      <h1
+        className="text-3xl font-extrabold"
+        style={{ color: "var(--ss-ink)" }}
+      >
+        Unable to Load Studios
+      </h1>
+
+      <p
+        className="mt-4 max-w-md text-sm leading-7"
+        style={{ color: "var(--ss-muted)" }}
+      >
+        The studio listings could not be loaded.
+        Please check your backend connection and try again.
+      </p>
+    </main>
+  );
+}
+
+// Fetch API data without creating JSX inside try/catch.
+async function StudiosContent() {
+  let studios: Studio[] = [];
+  let loadError = false;
 
   try {
     studios = await getAllStudios();
+
+    console.log(
+      `[StudioSpace] Explore Studios fetched ${studios.length} studios.`
+    );
   } catch (error) {
     console.error("Failed to load studios:", error);
-
-    return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center px-5 text-center">
-        <h1 className="text-3xl font-bold text-slate-900">
-          Unable to Load Studios
-        </h1>
-
-        <p className="mt-4 text-slate-600">
-          Please check your connection and try again.
-        </p>
-      </main>
-    );
+    loadError = true;
   }
 
+  // JSX is now outside try/catch.
+  if (loadError) {
+    return <StudiosError />;
+  }
+
+  return <ExploreStudios studios={studios} />;
+}
+
+// Suspense supports Next.js Cache Components.
+export default function StudiosPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <p className="text-slate-600">
-            Loading studio filters...
-          </p>
-        </div>
-      }
-    >
-      <ExploreStudios studios={studios} />
+    <Suspense fallback={<StudiosLoading />}>
+      <StudiosContent />
     </Suspense>
   );
 }
