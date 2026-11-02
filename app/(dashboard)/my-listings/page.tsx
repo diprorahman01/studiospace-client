@@ -35,7 +35,11 @@ const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:5000";
 
-type StudioStatus = "active" | "inactive";
+type StudioStatus =
+  | "active"
+  | "inactive"
+  | "draft"
+  | "suspended";
 
 type OwnerStudio = {
   _id: string;
@@ -48,6 +52,7 @@ type OwnerStudio = {
   securityDeposit?: number;
   maxCapacity?: number;
   status?: StudioStatus;
+  isDemo?: boolean;
   rating?: number;
   reviewCount?: number;
   createdAt?: string;
@@ -56,11 +61,14 @@ type OwnerStudio = {
 type StudioApiResponse = {
   success: boolean;
   message?: string;
-  data?: OwnerStudio[];
+  data?: OwnerStudio[] | OwnerStudio;
   activeBookings?: number;
 };
 
-type ListingFilter = "all" | "active" | "inactive";
+type ListingFilter =
+  | "all"
+  | "active"
+  | "inactive";
 
 const FILTERS: {
   label: string;
@@ -71,10 +79,27 @@ const FILTERS: {
   { label: "Inactive", value: "inactive" },
 ];
 
+function canManageAvailability(studio: OwnerStudio) {
+  return (
+    studio.isDemo !== true &&
+    (studio.status == null ||
+      studio.status === "active" ||
+      studio.status === "inactive")
+  );
+}
+
+function isActiveStudio(studio: OwnerStudio) {
+  return (
+    canManageAvailability(studio) &&
+    studio.status !== "inactive"
+  );
+}
+
 function formatMoney(value: number) {
-  return `৳${Number(value || 0).toLocaleString("en-BD", {
-    maximumFractionDigits: 2,
-  })}`;
+  return `$${Number(value || 0).toLocaleString(
+    "en-US",
+    { maximumFractionDigits: 2 }
+  )}`;
 }
 
 function formatDate(value?: string) {
@@ -86,7 +111,7 @@ function formatDate(value?: string) {
     return "Not available";
   }
 
-  return date.toLocaleDateString("en-BD", {
+  return date.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -94,13 +119,36 @@ function formatDate(value?: string) {
 }
 
 function ListingStatus({
-  status,
+  studio,
 }: {
-  status?: StudioStatus;
+  studio: OwnerStudio;
 }) {
-  if (status === "inactive") {
+  if (studio.isDemo === true) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
+      <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-3 py-1.5 text-xs font-semibold text-violet-700">
+        <ShieldCheck size={14} />
+        Demo
+      </span>
+    );
+  }
+
+  if (
+    studio.status === "draft" ||
+    studio.status === "suspended"
+  ) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">
+        <Clock3 size={14} />
+        {studio.status === "draft"
+          ? "Draft"
+          : "Suspended"}
+      </span>
+    );
+  }
+
+  if (studio.status === "inactive") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">
         <Clock3 size={14} />
         Inactive
       </span>
@@ -108,7 +156,7 @@ function ListingStatus({
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700">
       <CheckCircle2 size={14} />
       Active
     </span>
@@ -137,7 +185,6 @@ function StudioImage({
   }
 
   return (
-    // Supports external and local image paths.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
@@ -160,23 +207,22 @@ export default function MyListingsPage() {
 
   const [studios, setStudios] =
     useState<OwnerStudio[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] =
-    useState(false);
 
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] =
     useState<ListingFilter>("all");
 
-  // Delete confirmation state
   const [studioToDelete, setStudioToDelete] =
     useState<OwnerStudio | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // -----------------------------
-  // Fetch owner listings
-  // -----------------------------
+  const [
+    updatingAvailabilityId,
+    setUpdatingAvailabilityId,
+  ] = useState<string | null>(null);
 
   const loadStudios = useCallback(
     async (signal?: AbortSignal) => {
@@ -214,10 +260,6 @@ export default function MyListingsPage() {
     []
   );
 
-  // -----------------------------
-  // Initial data loading
-  // -----------------------------
-
   useEffect(() => {
     if (checkingSession || !userId) return;
 
@@ -225,7 +267,9 @@ export default function MyListingsPage() {
 
     async function fetchInitialStudios() {
       try {
-        const data = await loadStudios(controller.signal);
+        const data = await loadStudios(
+          controller.signal
+        );
 
         if (controller.signal.aborted) return;
 
@@ -262,12 +306,15 @@ export default function MyListingsPage() {
     return () => controller.abort();
   }, [checkingSession, userId, router, loadStudios]);
 
-  // -----------------------------
-  // Refresh listings
-  // -----------------------------
-
   async function handleRefresh() {
-    if (loading || refreshing || deleting) return;
+    if (
+      loading ||
+      refreshing ||
+      deleting ||
+      updatingAvailabilityId
+    ) {
+      return;
+    }
 
     setRefreshing(true);
 
@@ -296,12 +343,90 @@ export default function MyListingsPage() {
     }
   }
 
-  // -----------------------------
-  // Delete selected studio
-  // -----------------------------
+  async function handleAvailabilityChange(
+    studio: OwnerStudio
+  ) {
+    if (
+      updatingAvailabilityId !== null ||
+      !canManageAvailability(studio)
+    ) {
+      return;
+    }
+
+    const nextStatus =
+      isActiveStudio(studio) ? "inactive" : "active";
+
+    setUpdatingAvailabilityId(studio._id);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/studios/${studio._id}/availability`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            status: nextStatus,
+          }),
+        }
+      );
+
+      const result: StudioApiResponse =
+        await response.json();
+
+      if (response.status === 401) {
+        toast.error("Please log in again.");
+        router.push("/login");
+        return;
+      }
+
+      if (!response.ok || !result.success) {
+        toast.error(
+          result.message ||
+            "Could not update studio availability."
+        );
+        return;
+      }
+
+      setStudios((current) =>
+        current.map((item) =>
+          item._id === studio._id
+            ? { ...item, status: nextStatus }
+            : item
+        )
+      );
+
+      toast.success(
+        result.message ||
+          "Studio availability updated."
+      );
+
+      router.refresh();
+    } catch (err) {
+      console.error(
+        "Studio availability error:",
+        err
+      );
+
+      toast.error(
+        "Could not connect to the server."
+      );
+    } finally {
+      setUpdatingAvailabilityId(null);
+    }
+  }
 
   async function handleDelete() {
-    if (!studioToDelete || deleting) return;
+    if (
+      !studioToDelete ||
+      deleting ||
+      updatingAvailabilityId
+    ) {
+      return;
+    }
 
     const selectedStudio = studioToDelete;
 
@@ -338,7 +463,8 @@ export default function MyListingsPage() {
 
       if (!response.ok || !result.success) {
         toast.error(
-          result.message || "Failed to delete studio."
+          result.message ||
+            "Failed to delete studio."
         );
         return;
       }
@@ -365,12 +491,8 @@ export default function MyListingsPage() {
     }
   }
 
-  // -----------------------------
-  // Statistics
-  // -----------------------------
-
   const activeCount = studios.filter(
-    (studio) => studio.status !== "inactive"
+    isActiveStudio
   ).length;
 
   const inactiveCount = studios.filter(
@@ -398,18 +520,16 @@ export default function MyListingsPage() {
     },
   ];
 
-  // -----------------------------
-  // Search and filter
-  // -----------------------------
-
   const visibleStudios = useMemo(() => {
     const term = search.trim().toLowerCase();
 
     return studios.filter((studio) => {
-      const status = studio.status ?? "active";
-
       const matchesStatus =
-        filter === "all" || status === filter;
+        filter === "all" ||
+        (filter === "active" &&
+          isActiveStudio(studio)) ||
+        (filter === "inactive" &&
+          studio.status === "inactive");
 
       const matchesSearch =
         !term ||
@@ -421,20 +541,27 @@ export default function MyListingsPage() {
     });
   }, [studios, search, filter]);
 
-  // -----------------------------
-  // Authentication state
-  // -----------------------------
-
   if (checkingSession || !userId) {
     return (
       <main className="flex min-h-[70vh] flex-col items-center justify-center gap-3">
-        <LoaderCircle
-          size={34}
-          className="animate-spin text-violet-700"
-        />
-        <p className="text-sm text-slate-500">
-          Checking your account...
-        </p>
+        {checkingSession ? (
+          <LoaderCircle
+            size={34}
+            className="animate-spin text-violet-700"
+          />
+        ) : (
+          <>
+            <p className="text-lg font-bold">
+              Login Required
+            </p>
+            <Link
+              href="/login"
+              className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
+            >
+              Go to Login
+            </Link>
+          </>
+        )}
       </main>
     );
   }
@@ -472,7 +599,7 @@ export default function MyListingsPage() {
       </section>
 
       <div className="mx-auto max-w-7xl px-5 py-10">
-        {/* Summary cards */}
+        {/* Summary */}
         <div className="mb-9 grid gap-4 sm:grid-cols-3">
           {summaryCards.map((item) => {
             const Icon = item.icon;
@@ -500,7 +627,7 @@ export default function MyListingsPage() {
           })}
         </div>
 
-        {/* Filters and search */}
+        {/* Filters */}
         <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((item) => (
@@ -540,19 +667,26 @@ export default function MyListingsPage() {
             <button
               type="button"
               onClick={handleRefresh}
-              disabled={loading || refreshing || deleting}
+              disabled={
+                loading ||
+                refreshing ||
+                deleting ||
+                updatingAvailabilityId !== null
+              }
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <RefreshCw
                 size={16}
-                className={refreshing ? "animate-spin" : ""}
+                className={
+                  refreshing ? "animate-spin" : ""
+                }
               />
               Refresh
             </button>
           </div>
         </div>
 
-        {/* Main content */}
+        {/* Listings */}
         {loading ? (
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl bg-white">
             <LoaderCircle
@@ -638,7 +772,7 @@ export default function MyListingsPage() {
                     title={studio.title}
                   />
                   <div className="absolute right-4 top-4">
-                    <ListingStatus status={studio.status} />
+                    <ListingStatus studio={studio} />
                   </div>
                 </div>
 
@@ -706,7 +840,64 @@ export default function MyListingsPage() {
                     This listing belongs to your StudioSpace account.
                   </div>
 
-                  {/* View and Edit */}
+                  {/* Availability management */}
+                  <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-400/25 dark:bg-violet-500/10">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <span className="text-sm font-semibold text-violet-800 dark:text-violet-200">
+                        Booking Availability
+                      </span>
+
+                      <span className="text-xs font-medium text-violet-700 dark:text-violet-300">
+                        {studio.isDemo
+                          ? "Demo"
+                          : studio.status === "draft"
+                            ? "Draft"
+                            : studio.status === "suspended"
+                              ? "Suspended"
+                              : isActiveStudio(studio)
+                                ? "Active"
+                                : "Inactive"}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={
+                        updatingAvailabilityId !== null ||
+                        deleting ||
+                        !canManageAvailability(studio)
+                      }
+                      onClick={() =>
+                        handleAvailabilityChange(studio)
+                      }
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {updatingAvailabilityId === studio._id ? (
+                        <>
+                          <LoaderCircle
+                            size={17}
+                            className="animate-spin"
+                          />
+                          Updating...
+                        </>
+                      ) : !canManageAvailability(studio) ? (
+                        "Approval Required"
+                      ) : isActiveStudio(studio) ? (
+                        "Make Unavailable"
+                      ) : (
+                        "Make Available"
+                      )}
+                    </button>
+
+                    {!canManageAvailability(studio) && (
+                      <p className="mt-2 text-xs leading-5 text-violet-700 dark:text-violet-300">
+                        Draft and demo studios cannot be
+                        activated from this control.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* View and edit */}
                   <div className="grid grid-cols-2 gap-3">
                     <Link
                       href={`/studios/${studio._id}`}
@@ -732,8 +923,13 @@ export default function MyListingsPage() {
                   {/* Delete */}
                   <button
                     type="button"
-                    disabled={deleting}
-                    onClick={() => setStudioToDelete(studio)}
+                    disabled={
+                      deleting ||
+                      updatingAvailabilityId !== null
+                    }
+                    onClick={() =>
+                      setStudioToDelete(studio)
+                    }
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
                   >
                     <Trash2 size={17} />
@@ -778,7 +974,9 @@ export default function MyListingsPage() {
               <button
                 type="button"
                 disabled={deleting}
-                onClick={() => setStudioToDelete(null)}
+                onClick={() =>
+                  setStudioToDelete(null)
+                }
                 aria-label="Close confirmation dialog"
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
               >
@@ -813,7 +1011,9 @@ export default function MyListingsPage() {
               <button
                 type="button"
                 disabled={deleting}
-                onClick={() => setStudioToDelete(null)}
+                onClick={() =>
+                  setStudioToDelete(null)
+                }
                 className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 Keep Studio

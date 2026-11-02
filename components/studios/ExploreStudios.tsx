@@ -17,16 +17,10 @@ import {
   Sparkles,
   Star,
 } from "lucide-react";
-
 import type { Studio } from "@/types/studio";
 
 interface ExploreStudiosProps {
   studios: Studio[];
-}
-
-interface CategoryDropdownProps {
-  value: string;
-  onChange: (value: string) => void;
 }
 
 const categories = [
@@ -39,8 +33,6 @@ const categories = [
   "Creative Workspace",
 ];
 
-// Sample ratings for the six demonstration studios.
-// These values are not customer-generated reviews.
 const demoRatings: Record<string, number> = {
   "The Fashion Editorial Studio": 4.9,
   "The Green Screen Production Studio": 4.7,
@@ -57,16 +49,13 @@ function formatPrice(value: number) {
 }
 
 function getRating(studio: Studio) {
-  const actualRating =
+  if (
     typeof studio.rating === "number" &&
     Number.isFinite(studio.rating) &&
     studio.rating > 0
-      ? studio.rating
-      : null;
-
-  if (actualRating !== null) {
+  ) {
     return {
-      value: actualRating,
+      value: studio.rating,
       isDemo: false,
     };
   }
@@ -74,21 +63,63 @@ function getRating(studio: Studio) {
   const demoRating = demoRatings[studio.title];
 
   if (demoRating !== undefined) {
-    return {
-      value: demoRating,
-      isDemo: true,
-    };
+    return { value: demoRating, isDemo: true };
   }
 
-  return {
-    value: null,
-    isDemo: false,
-  };
+  return { value: null, isDemo: false };
 }
 
-// ===========================================
-// CUSTOM PURPLE CATEGORY DROPDOWN
-// ===========================================
+function isBookable(studio: Studio) {
+  return (
+    studio.isDemo !== true &&
+    (studio.status == null || studio.status === "active")
+  );
+}
+
+// Stable order using the studio ID.
+// Cards won't jump around whenever a component rerenders.
+function studioOrderKey(studio: Studio) {
+  let hash = 0;
+
+  for (const char of studio._id) {
+    hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  }
+
+  return hash >>> 0;
+}
+
+function mixStudios(studios: Studio[]) {
+  const available = studios
+    .filter(isBookable)
+    .sort(
+      (a, b) =>
+        studioOrderKey(a) - studioOrderKey(b)
+    );
+
+  const unavailable = studios
+    .filter((studio) => !isBookable(studio))
+    .sort(
+      (a, b) =>
+        studioOrderKey(a) - studioOrderKey(b)
+    );
+
+  const mixed: Studio[] = [];
+
+  while (available.length > 0 || unavailable.length > 0) {
+    const activeStudio = available.shift();
+    const inactiveStudio = unavailable.shift();
+
+    if (activeStudio) mixed.push(activeStudio);
+    if (inactiveStudio) mixed.push(inactiveStudio);
+  }
+
+  return mixed;
+}
+
+type CategoryDropdownProps = {
+  value: string;
+  onChange: (value: string) => void;
+};
 
 function CategoryDropdown({
   value,
@@ -102,9 +133,7 @@ function CategoryDropdown({
     function handleOutsideClick(event: PointerEvent) {
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(
-          event.target as Node
-        )
+        !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsOpen(false);
       }
@@ -121,18 +150,13 @@ function CategoryDropdown({
       "pointerdown",
       handleOutsideClick
     );
-
-    document.addEventListener(
-      "keydown",
-      handleKeyDown
-    );
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.removeEventListener(
         "pointerdown",
         handleOutsideClick
       );
-
       document.removeEventListener(
         "keydown",
         handleKeyDown
@@ -140,8 +164,8 @@ function CategoryDropdown({
     };
   }, []);
 
-  function selectCategory(selected: string) {
-    onChange(selected);
+  function selectCategory(item: string) {
+    onChange(item);
     setIsOpen(false);
     buttonRef.current?.focus();
   }
@@ -152,9 +176,7 @@ function CategoryDropdown({
       className="relative"
       onBlur={(event) => {
         if (
-          !event.currentTarget.contains(
-            event.relatedTarget
-          )
+          !event.currentTarget.contains(event.relatedTarget)
         ) {
           setIsOpen(false);
         }
@@ -187,17 +209,7 @@ function CategoryDropdown({
             setIsOpen(true);
           }
         }}
-        className="
-          flex w-full items-center justify-between
-          gap-3 rounded-xl border
-          px-4 py-3 text-left text-sm
-          font-medium outline-none
-          transition-all duration-200
-          hover:border-violet-400
-          focus-visible:ring-2
-          focus-visible:ring-violet-500/40
-          dark:hover:border-violet-400
-        "
+        className="flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-sm font-medium outline-none transition hover:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-500/40"
         style={{
           background: "var(--ss-surface-alt)",
           borderColor: isOpen
@@ -207,7 +219,6 @@ function CategoryDropdown({
         }}
       >
         <span className="truncate">{value}</span>
-
         <ChevronDown
           size={17}
           aria-hidden="true"
@@ -222,16 +233,7 @@ function CategoryDropdown({
           id="studio-category-options"
           role="listbox"
           aria-labelledby="studio-category-label"
-          className="
-            absolute left-0 right-0 top-full z-50
-            mt-2 overflow-hidden rounded-2xl
-            border border-violet-200
-            bg-[#fffaff] p-1.5
-            shadow-[0_15px_45px_rgba(87,33,138,0.20)]
-            dark:border-violet-400/30
-            dark:bg-[#21172f]
-            dark:shadow-[0_18px_48px_rgba(0,0,0,0.45)]
-          "
+          className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-violet-200 bg-[#fffaff] p-1.5 shadow-[0_15px_45px_rgba(87,33,138,0.20)] dark:border-violet-400/30 dark:bg-[#21172f] dark:shadow-[0_18px_48px_rgba(0,0,0,0.45)]"
         >
           <div className="max-h-[310px] overflow-y-auto">
             {categories.map((item) => {
@@ -244,26 +246,13 @@ function CategoryDropdown({
                   role="option"
                   aria-selected={selected}
                   onClick={() => selectCategory(item)}
-                  className={`
-                    flex w-full items-center
-                    justify-between gap-2
-                    rounded-xl px-3 py-3
-                    text-left text-sm
-                    font-medium outline-none
-                    transition-colors duration-150
-                    focus-visible:bg-violet-100
-                    focus-visible:text-violet-800
-                    dark:focus-visible:bg-violet-500/20
-                    dark:focus-visible:text-white
-                    ${
-                      selected
-                        ? "bg-violet-100 text-violet-800 dark:bg-violet-500/25 dark:text-[#f4e5ff]"
-                        : "text-[#402658] hover:bg-violet-50 hover:text-violet-700 dark:text-[#e1d1ef] dark:hover:bg-violet-500/15 dark:hover:text-white"
-                    }
-                  `}
+                  className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-3 text-left text-sm font-medium outline-none transition-colors duration-150 focus-visible:bg-violet-100 focus-visible:text-violet-800 dark:focus-visible:bg-violet-500/20 dark:focus-visible:text-white ${
+                    selected
+                      ? "bg-violet-100 text-violet-800 dark:bg-violet-500/25 dark:text-[#f4e5ff]"
+                      : "text-[#402658] hover:bg-violet-50 hover:text-violet-700 dark:text-[#e1d1ef] dark:hover:bg-violet-500/15 dark:hover:text-white"
+                  }`}
                 >
                   <span>{item}</span>
-
                   {selected && (
                     <Check
                       size={17}
@@ -281,10 +270,6 @@ function CategoryDropdown({
   );
 }
 
-// ===========================================
-// EXPLORE STUDIOS PAGE
-// ===========================================
-
 export default function ExploreStudios({
   studios,
 }: ExploreStudiosProps) {
@@ -300,16 +285,15 @@ export default function ExploreStudios({
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(initialCategory);
   const [location, setLocation] = useState("All Locations");
-  const [sortBy, setSortBy] = useState("newest");
+  const [sortBy, setSortBy] = useState("mixed");
 
-  const locations = useMemo(() => {
-    return [
+  const locations = useMemo(
+    () => [
       "All Locations",
-      ...new Set(
-        studios.map((studio) => studio.location)
-      ),
-    ];
-  }, [studios]);
+      ...new Set(studios.map((studio) => studio.location)),
+    ],
+    [studios]
+  );
 
   const activeCategory = searchParams.has("category")
     ? category === initialCategory
@@ -325,9 +309,7 @@ export default function ExploreStudios({
         studio.title.toLowerCase().includes(searchText) ||
         studio.location.toLowerCase().includes(searchText) ||
         studio.category.toLowerCase().includes(searchText) ||
-        studio.overview
-          ?.toLowerCase()
-          .includes(searchText);
+        studio.overview?.toLowerCase().includes(searchText);
 
       const matchesCategory =
         activeCategory === "All Categories" ||
@@ -343,6 +325,10 @@ export default function ExploreStudios({
         matchesLocation
       );
     });
+
+    if (sortBy === "mixed") {
+      return mixStudios(results);
+    }
 
     return [...results].sort((a, b) => {
       if (sortBy === "price-low") {
@@ -377,8 +363,7 @@ export default function ExploreStudios({
     setSearch("");
     setCategory("All Categories");
     setLocation("All Locations");
-    setSortBy("newest");
-
+    setSortBy("mixed");
     window.history.replaceState(
       null,
       "",
@@ -388,10 +373,7 @@ export default function ExploreStudios({
 
   return (
     <main className="min-h-screen">
-      {/* ==================================
-          EXPLORE STUDIOS BANNER
-          ================================== */}
-
+      {/* Banner */}
       <section
         aria-labelledby="explore-heading"
         className="relative isolate flex min-h-[360px] items-center justify-center overflow-hidden px-5 py-20 text-center text-white sm:min-h-[390px]"
@@ -432,10 +414,7 @@ export default function ExploreStudios({
         </div>
       </section>
 
-      {/* ==================================
-          SEARCH AND FILTERS
-          ================================== */}
-
+      {/* Search and filters */}
       <section className="mx-auto max-w-7xl px-5 py-12 md:py-16">
         <div
           className="rounded-[22px] border p-5 shadow-sm sm:p-6"
@@ -445,8 +424,6 @@ export default function ExploreStudios({
             boxShadow: "var(--ss-shadow)",
           }}
         >
-          {/* Search */}
-
           <div className="relative">
             <Search
               size={19}
@@ -454,7 +431,6 @@ export default function ExploreStudios({
               className="absolute left-4 top-1/2 -translate-y-1/2"
               style={{ color: "var(--ss-muted)" }}
             />
-
             <input
               type="search"
               value={search}
@@ -473,14 +449,10 @@ export default function ExploreStudios({
           </div>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Custom Category dropdown */}
-
             <CategoryDropdown
               value={activeCategory}
               onChange={setCategory}
             />
-
-            {/* Location — unchanged */}
 
             <div>
               <label
@@ -490,7 +462,6 @@ export default function ExploreStudios({
               >
                 Location
               </label>
-
               <select
                 id="studio-location"
                 value={location}
@@ -512,8 +483,6 @@ export default function ExploreStudios({
               </select>
             </div>
 
-            {/* Sort — unchanged */}
-
             <div>
               <label
                 htmlFor="studio-sort"
@@ -522,7 +491,6 @@ export default function ExploreStudios({
               >
                 Sort By
               </label>
-
               <select
                 id="studio-sort"
                 value={sortBy}
@@ -536,25 +504,17 @@ export default function ExploreStudios({
                   color: "var(--ss-ink)",
                 }}
               >
-                <option value="newest">
-                  Newest First
-                </option>
-
+                <option value="mixed">Mixed Studios</option>
+                <option value="newest">Newest First</option>
                 <option value="price-low">
                   Price: Low to High
                 </option>
-
                 <option value="price-high">
                   Price: High to Low
                 </option>
-
-                <option value="rating">
-                  Highest Rated
-                </option>
+                <option value="rating">Highest Rated</option>
               </select>
             </div>
-
-            {/* Reset */}
 
             <div className="flex items-end">
               <button
@@ -574,21 +534,16 @@ export default function ExploreStudios({
           </div>
         </div>
 
-        {/* ==================================
-            RESULTS HEADING
-            ================================== */}
-
+        {/* Results heading */}
         <div className="my-10 flex flex-wrap items-end justify-between gap-4">
           <div>
             <span className="ss-kicker">
               <Sparkles size={14} />
               Creative Spaces
             </span>
-
             <h2 className="ss-heading mt-4">
               Available Studios
             </h2>
-
             <p
               className="mt-2 text-sm"
               style={{ color: "var(--ss-muted)" }}
@@ -614,10 +569,7 @@ export default function ExploreStudios({
           </span>
         </div>
 
-        {/* ==================================
-            STUDIO CARDS
-            ================================== */}
-
+        {/* Studio cards */}
         {filteredStudios.length === 0 ? (
           <div className="ss-card px-6 py-20 text-center">
             <Building2
@@ -625,21 +577,18 @@ export default function ExploreStudios({
               className="mx-auto"
               style={{ color: "var(--ss-accent)" }}
             />
-
             <h3
               className="mt-5 text-xl font-bold"
               style={{ color: "var(--ss-ink)" }}
             >
               No studios found
             </h3>
-
             <p
               className="mt-3 text-sm"
               style={{ color: "var(--ss-muted)" }}
             >
               Try changing your search or filters.
             </p>
-
             <button
               type="button"
               onClick={resetFilters}
@@ -658,8 +607,6 @@ export default function ExploreStudios({
                   key={studio._id}
                   className="ss-card group flex h-full flex-col"
                 >
-                  {/* Studio image */}
-
                   <Link
                     href={`/studios/${studio._id}`}
                     aria-label={`View ${studio.title}`}
@@ -689,13 +636,9 @@ export default function ExploreStudios({
                       className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 to-transparent"
                     />
 
-                    {/* Category badge */}
-
                     <span className="absolute left-4 top-4 max-w-[78%] truncate rounded-full border border-white/20 bg-[#f8f2ff]/95 px-3 py-1.5 text-xs font-bold text-[#682c9b] shadow-sm dark:!border-violet-300/30 dark:!bg-[#21172f]/95 dark:!text-white">
                       {studio.category}
                     </span>
-
-                    {/* Rating badge */}
 
                     <span
                       aria-label={
@@ -712,7 +655,6 @@ export default function ExploreStudios({
                         aria-hidden="true"
                         className="shrink-0 fill-amber-400 text-amber-400"
                       />
-
                       <span className="font-extrabold text-[#321a49] dark:!text-white">
                         {rating.value === null
                           ? "Unrated"
@@ -720,8 +662,6 @@ export default function ExploreStudios({
                       </span>
                     </span>
                   </Link>
-
-                  {/* Studio details */}
 
                   <div className="flex flex-1 flex-col p-5 sm:p-6">
                     <Link href={`/studios/${studio._id}`}>
@@ -741,11 +681,8 @@ export default function ExploreStudios({
                         size={16}
                         className="mt-0.5 shrink-0"
                       />
-
                       <span>{studio.location}</span>
                     </div>
-
-                    {/* Original dollar prices */}
 
                     <div
                       className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t pt-5"
@@ -763,12 +700,9 @@ export default function ExploreStudios({
                         >
                           ${formatPrice(studio.hourlyRate)}
                         </span>
-
                         <span
                           className="ml-1 text-xs"
-                          style={{
-                            color: "var(--ss-muted)",
-                          }}
+                          style={{ color: "var(--ss-muted)" }}
                         >
                           / hour
                         </span>

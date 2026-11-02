@@ -16,6 +16,8 @@ export interface Studio {
   ownerName: string;
   ownerEmail: string;
   createdAt: string;
+  status?: string;
+  isDemo?: boolean;
 }
 
 export interface StudiosResponse {
