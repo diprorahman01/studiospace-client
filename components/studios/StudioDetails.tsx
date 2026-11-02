@@ -15,23 +15,28 @@ import {
   Star,
   Users,
   Wifi,
-  CalendarDays,
 } from "lucide-react";
 
 import type { Studio } from "@/types/studio";
 import BookingModal from "@/components/bookings/BookingModal";
+import StudioAvailabilityCalendar from "@/components/studios/StudioAvailabilityCalendar";
 
 interface StudioDetailsProps {
   studio: Studio;
 }
 
-type Tab = "overview" | "amenities" | "availability" | "reviews";
+type Tab =
+  | "overview"
+  | "amenities"
+  | "availability"
+  | "reviews";
 
 export default function StudioDetails({
   studio,
 }: StudioDetailsProps) {
   const [activeImage, setActiveImage] = useState(0);
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTab] =
+    useState<Tab>("overview");
 
   const images =
     studio.images?.length > 0
@@ -271,20 +276,9 @@ export default function StudioDetails({
                 )}
 
                 {activeTab === "availability" && (
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-950">
-                      Availability
-                    </h2>
-
-                    <div className="mt-5 flex items-start gap-3 rounded-xl bg-violet-50 p-5">
-                      <CalendarDays className="shrink-0 text-violet-700" />
-                      <p className="text-sm leading-7 text-slate-600">
-                        Choose your preferred date and time using
-                        the booking button. Availability
-                        verification will be added with the booking API.
-                      </p>
-                    </div>
-                  </div>
+                  <StudioAvailabilityCalendar
+                    studio={studio}
+                  />
                 )}
 
                 {activeTab === "reviews" && (
@@ -292,9 +286,9 @@ export default function StudioDetails({
                     <h2 className="text-xl font-bold text-slate-950">
                       Studio Reviews
                     </h2>
-
                     <p className="mt-4 text-slate-600">
-                      Verified customer reviews have not been added yet.
+                      Verified customer reviews have not
+                      been added yet.
                     </p>
                   </div>
                 )}
@@ -336,7 +330,6 @@ export default function StudioDetails({
                 </span>
               </div>
 
-              {/* Added spacing above booking button */}
               <div className="mt-6">
                 <BookingModal studio={studio} />
               </div>
@@ -357,7 +350,6 @@ export default function StudioDetails({
                   <p className="font-semibold text-slate-900">
                     {studio.ownerName || "Studio Host"}
                   </p>
-
                   <p className="text-xs text-slate-500">
                     StudioSpace Host
                   </p>
@@ -376,8 +368,8 @@ export default function StudioDetails({
             <div className="flex items-start gap-3 rounded-xl bg-violet-100 p-5">
               <ShieldCheck className="shrink-0 text-violet-700" />
               <p className="text-sm leading-6 text-violet-900">
-                Review the studio information, equipment, and
-                booking terms before making a reservation.
+                Review the studio information, equipment,
+                and booking terms before making a reservation.
               </p>
             </div>
           </aside>
