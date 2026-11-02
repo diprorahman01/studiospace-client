@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -9,12 +9,16 @@ import {
   ArrowRight,
   BadgeCheck,
   Camera,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
+  Expand,
   MapPin,
   ShieldCheck,
   Star,
   Users,
   Wifi,
+  X,
 } from "lucide-react";
 
 import type { Studio } from "@/types/studio";
@@ -38,10 +42,22 @@ export default function StudioDetails({
   const [activeTab, setActiveTab] =
     useState<Tab>("overview");
 
-  const images =
-    studio.images?.length > 0
-      ? studio.images
-      : [studio.image];
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+
+  const images = [
+    ...new Set(
+      (studio.images?.length
+        ? studio.images
+        : [studio.image]
+      ).filter(
+        (image): image is string =>
+          typeof image === "string" && image.trim().length > 0
+      )
+    ),
+  ];
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -51,6 +67,8 @@ export default function StudioDetails({
   ];
 
   function previousImage() {
+    if (images.length <= 1) return;
+
     setActiveImage(
       (current) =>
         (current - 1 + images.length) % images.length
@@ -58,10 +76,88 @@ export default function StudioDetails({
   }
 
   function nextImage() {
+    if (images.length <= 1) return;
+
     setActiveImage(
       (current) => (current + 1) % images.length
     );
   }
+
+  function openLightbox() {
+    if (!images.length) return;
+    setLightboxOpen(true);
+  }
+
+  function closeLightbox() {
+    setLightboxOpen(false);
+  }
+
+  // Enable keyboard navigation inside the lightbox.
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    closeButtonRef.current?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeLightbox();
+      }
+
+      if (event.key === "ArrowLeft" && images.length > 1) {
+        event.preventDefault();
+        setActiveImage(
+          (current) =>
+            (current - 1 + images.length) % images.length
+        );
+      }
+
+      if (event.key === "ArrowRight" && images.length > 1) {
+        event.preventDefault();
+        setActiveImage(
+          (current) => (current + 1) % images.length
+        );
+      }
+
+      if (event.key === "Tab") {
+        const focusables = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '[data-studio-lightbox] button:not([disabled])'
+          )
+        );
+
+        if (focusables.length === 0) return;
+
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (
+          !event.shiftKey &&
+          document.activeElement === last
+        ) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+      openButtonRef.current?.focus();
+    };
+  }, [lightboxOpen, images.length]);
+
+  const hasImages = images.length > 0;
+  const currentImage = images[activeImage] || images[0];
 
   return (
     <main className="min-h-screen bg-[#f8f7fd] px-5 py-10 md:py-14">
@@ -76,24 +172,42 @@ export default function StudioDetails({
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="min-w-0">
-            {/* Image gallery */}
+            {/* Main image gallery */}
             <div className="relative h-[280px] overflow-hidden rounded-2xl bg-slate-200 sm:h-[420px] lg:h-[480px]">
-              <Image
-                src={images[activeImage]}
-                alt={`${studio.title} - photo ${activeImage + 1}`}
-                fill
-                priority
-                sizes="(max-width: 1024px) 100vw, 70vw"
-                className="object-cover"
-              />
+              {hasImages ? (
+                <Image
+                  src={currentImage}
+                  alt={`${studio.title} - photo ${activeImage + 1}`}
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 70vw"
+                  className="object-cover"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-slate-500">
+                  <Camera size={44} />
+                </div>
+              )}
 
+              {/* Clickable surface to enlarge image */}
+              {hasImages && (
+                <button
+                  ref={openButtonRef}
+                  type="button"
+                  onClick={openLightbox}
+                  aria-label={`Open full-screen gallery for ${studio.title}`}
+                  className="absolute inset-0 z-10 cursor-zoom-in focus-visible:outline-4 focus-visible:outline-violet-500"
+                />
+              )}
+
+              {/* Prev and next controls */}
               {images.length > 1 && (
                 <>
                   <button
                     type="button"
                     onClick={previousImage}
                     aria-label="Previous studio photo"
-                    className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white p-3 text-slate-900 shadow-lg hover:bg-violet-100"
+                    className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white p-3 text-slate-900 shadow-lg transition hover:bg-violet-100"
                   >
                     <ArrowLeft size={19} />
                   </button>
@@ -102,16 +216,32 @@ export default function StudioDetails({
                     type="button"
                     onClick={nextImage}
                     aria-label="Next studio photo"
-                    className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white p-3 text-slate-900 shadow-lg hover:bg-violet-100"
+                    className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white p-3 text-slate-900 shadow-lg transition hover:bg-violet-100"
                   >
                     <ArrowRight size={19} />
                   </button>
                 </>
               )}
 
-              <span className="absolute bottom-4 right-4 rounded-lg bg-black/70 px-3 py-1.5 text-xs font-medium text-white">
-                {activeImage + 1} / {images.length}
-              </span>
+              {/* Main image counter */}
+              {hasImages && (
+                <span className="pointer-events-none absolute bottom-4 right-4 z-20 rounded-lg bg-black/70 px-3 py-1.5 text-xs font-medium text-white">
+                  {activeImage + 1} / {images.length}
+                </span>
+              )}
+
+              {/* Expand button */}
+              {hasImages && (
+                <button
+                  type="button"
+                  onClick={openLightbox}
+                  className="absolute bottom-4 left-4 z-20 inline-flex items-center gap-2 rounded-lg bg-black/70 px-3 py-2 text-xs font-semibold text-white transition hover:bg-violet-700"
+                  aria-label="View photos in full screen"
+                >
+                  <Expand size={15} />
+                  View Full Screen
+                </button>
+              )}
             </div>
 
             {/* Image thumbnails */}
@@ -123,10 +253,11 @@ export default function StudioDetails({
                     type="button"
                     onClick={() => setActiveImage(index)}
                     aria-label={`Show photo ${index + 1}`}
-                    className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border-2 ${
+                    aria-pressed={activeImage === index}
+                    className={`relative h-20 w-28 shrink-0 overflow-hidden rounded-xl border-2 transition ${
                       activeImage === index
                         ? "border-violet-700"
-                        : "border-transparent"
+                        : "border-transparent hover:border-violet-400"
                     }`}
                   >
                     <Image
@@ -296,7 +427,7 @@ export default function StudioDetails({
             </div>
           </div>
 
-          {/* Sidebar */}
+          {/* Booking sidebar */}
           <aside className="space-y-6 lg:sticky lg:top-28 lg:self-start">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <p className="text-sm text-slate-500">
@@ -375,6 +506,112 @@ export default function StudioDetails({
           </aside>
         </div>
       </div>
+
+      {/* ======================================
+          FULL-SCREEN PHOTO LIGHTBOX
+          ====================================== */}
+
+      {lightboxOpen && hasImages && (
+        <div
+          data-studio-lightbox
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${studio.title} photo gallery`}
+          className="fixed inset-0 z-[200] flex flex-col bg-[#090613]/[0.98] text-white"
+        >
+          {/* Lightbox header */}
+          <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-7">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-white sm:text-base">
+                {studio.title}
+              </p>
+              <p className="mt-1 text-xs text-violet-200">
+                Photo {activeImage + 1} of {images.length}
+              </p>
+            </div>
+
+            <button
+              ref={closeButtonRef}
+              type="button"
+              onClick={closeLightbox}
+              aria-label="Close full-screen gallery"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+            >
+              <X size={23} />
+            </button>
+          </div>
+
+          {/* Main full-screen image */}
+          <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-5 sm:px-16">
+            <div className="relative h-full w-full max-w-6xl">
+              <Image
+                src={currentImage}
+                alt={`${studio.title} full-screen photo ${activeImage + 1}`}
+                fill
+                sizes="100vw"
+                className="object-contain"
+                priority
+              />
+            </div>
+
+            {images.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={previousImage}
+                  aria-label="Previous full-screen photo"
+                  className="absolute left-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white transition hover:bg-violet-700 sm:left-6"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={nextImage}
+                  aria-label="Next full-screen photo"
+                  className="absolute right-2 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white transition hover:bg-violet-700 sm:right-6"
+                >
+                  <ChevronRight size={24} />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Thumbnail navigation */}
+          {images.length > 1 && (
+            <div className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-7">
+              <div className="mx-auto flex max-w-5xl justify-start gap-3 overflow-x-auto py-1 sm:justify-center">
+                {images.map((image, index) => (
+                  <button
+                    key={`${image}-lightbox-${index}`}
+                    type="button"
+                    onClick={() => setActiveImage(index)}
+                    aria-label={`Show full-screen photo ${index + 1}`}
+                    aria-pressed={activeImage === index}
+                    className={`relative h-16 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition sm:h-20 sm:w-28 ${
+                      activeImage === index
+                        ? "border-violet-400 opacity-100"
+                        : "border-white/15 opacity-50 hover:opacity-100"
+                    }`}
+                  >
+                    <Image
+                      src={image}
+                      alt={`${studio.title} gallery thumbnail ${index + 1}`}
+                      fill
+                      sizes="112px"
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+
+              <p className="mt-2 hidden text-center text-xs text-violet-200 sm:block">
+                Use ← and → to browse photos · Press Esc to close
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </main>
   );
 }
