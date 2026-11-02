@@ -1,12 +1,17 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
+  CalendarClock,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -15,15 +20,21 @@ import {
   Search,
   ShieldCheck,
   Wallet,
+  X,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000";
 
-type BookingStatus = "pending" | "confirmed" | "cancelled";
+type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "cancelled";
+
 type FilterType = "all" | BookingStatus;
 
 type Booking = {
@@ -34,51 +45,86 @@ type Booking = {
   startTime: string;
   endTime: string;
   duration: number;
+  hourlyRate?: number;
   rentalCost: number;
   securityDeposit: number;
   totalAmount: number;
   status: BookingStatus;
   createdAt: string;
+  rescheduledAt?: string;
 };
 
-type BookingsResponse = {
+type ApiResponse = {
   success: boolean;
-  count?: number;
-  data?: Booking[];
   message?: string;
+  data?: Booking[] | Booking;
 };
 
-const filters: { label: string; value: FilterType }[] = [
+type Slot = {
+  startTime: string;
+  endTime: string;
+  available: boolean;
+  reason: string | null;
+};
+
+type AvailabilityResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    slots: Slot[];
+  };
+};
+
+const filters: {
+  label: string;
+  value: FilterType;
+}[] = [
   { label: "All Bookings", value: "all" },
   { label: "Pending", value: "pending" },
   { label: "Confirmed", value: "confirmed" },
   { label: "Cancelled", value: "cancelled" },
 ];
 
+const TIME_OPTIONS = Array.from(
+  { length: 25 },
+  (_, index) => {
+    const minutes = 480 + index * 30;
+
+    return `${String(
+      Math.floor(minutes / 60)
+    ).padStart(2, "0")}:${String(
+      minutes % 60
+    ).padStart(2, "0")}`;
+  }
+);
+
+function todayUTC() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
 function formatMoney(amount: number) {
-  return `৳${Number(amount || 0).toLocaleString("en-BD", {
+  return `$${Number(amount || 0).toLocaleString("en-US", {
     maximumFractionDigits: 2,
   })}`;
 }
 
 function formatDate(value: string) {
-  const parts = value.split("-").map(Number);
+  const [year, month, day] = value.split("-").map(Number);
 
-  if (
-    parts.length !== 3 ||
-    parts.some((part) => !Number.isFinite(part))
-  ) {
-    return value;
-  }
+  if (!year || !month || !day) return value;
 
   return new Date(
-    parts[0],
-    parts[1] - 1,
-    parts[2]
-  ).toLocaleDateString("en-BD", {
+    Date.UTC(year, month - 1, day)
+  ).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -95,24 +141,32 @@ function formatTime(value: string) {
   )} ${hours >= 12 ? "PM" : "AM"}`;
 }
 
-function StatusBadge({ status }: { status: BookingStatus }) {
-  const styles: Record<BookingStatus, string> = {
-    pending: "bg-amber-50 text-amber-700",
-    confirmed: "bg-green-50 text-green-700",
-    cancelled: "bg-red-50 text-red-700",
+function StatusBadge({
+  status,
+}: {
+  status: BookingStatus;
+}) {
+  const config = {
+    pending: {
+      icon: Clock3,
+      className: "bg-amber-50 text-amber-700",
+    },
+    confirmed: {
+      icon: CheckCircle2,
+      className: "bg-green-50 text-green-700",
+    },
+    cancelled: {
+      icon: XCircle,
+      className: "bg-red-50 text-red-700",
+    },
   };
 
-  const icons = {
-    pending: Clock3,
-    confirmed: CheckCircle2,
-    cancelled: XCircle,
-  };
-
-  const Icon = icons[status];
+  const selected = config[status];
+  const Icon = selected.icon;
 
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${styles[status]}`}
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${selected.className}`}
     >
       <Icon size={14} />
       {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -123,55 +177,99 @@ function StatusBadge({ status }: { status: BookingStatus }) {
 export default function MyBookingsPage() {
   const router = useRouter();
 
-  const { data: session, isPending: checkingSession } =
-    authClient.useSession();
+  const {
+    data: session,
+    isPending: checkingSession,
+  } = authClient.useSession();
 
   const userId = session?.user?.id;
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<FilterType>("all");
   const [error, setError] = useState("");
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [cancellingId, setCancellingId] = useState<string | null>(
-    null
-  );
+  const [filter, setFilter] = useState<FilterType>("all");
+
+  const [confirmId, setConfirmId] =
+    useState<string | null>(null);
+
+  const [cancellingId, setCancellingId] =
+    useState<string | null>(null);
+
+  const [rescheduleBooking, setRescheduleBooking] =
+    useState<Booking | null>(null);
+
+  const [newDate, setNewDate] = useState("");
+  const [newStart, setNewStart] = useState("10:00");
+  const [newEnd, setNewEnd] = useState("12:00");
+
+  const [saving, setSaving] = useState(false);
+  const [availability, setAvailability] =
+    useState<Slot[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] =
+    useState(false);
+  const [availabilityError, setAvailabilityError] =
+    useState("");
+  const [refreshSlots, setRefreshSlots] = useState(0);
+
+  const [today] = useState(todayUTC);
 
   const loadBookings = useCallback(
     async (signal?: AbortSignal) => {
-      try {
-        const response = await fetch(
-          `${API_URL}/api/bookings/my`,
-          {
-            method: "GET",
-            credentials: "include",
-            cache: "no-store",
-            signal,
-          }
+      const response = await fetch(
+        `${API_URL}/api/bookings/my`,
+        {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+          signal,
+        }
+      );
+
+      if (response.status === 401) {
+        throw new Error("UNAUTHORIZED");
+      }
+
+      const result: ApiResponse = await response.json();
+
+      if (
+        !response.ok ||
+        !result.success ||
+        !Array.isArray(result.data)
+      ) {
+        throw new Error(
+          result.message || "Failed to load bookings."
         );
+      }
 
-        if (response.status === 401) {
-          if (!signal?.aborted) {
-            router.replace("/login");
-          }
-          return;
-        }
+      return result.data;
+    },
+    []
+  );
 
-        const result: BookingsResponse = await response.json();
+  useEffect(() => {
+    if (checkingSession || !userId) return;
 
-        if (!response.ok || !result.success) {
-          throw new Error(
-            result.message || "Failed to load bookings."
-          );
-        }
+    const controller = new AbortController();
 
-        if (!signal?.aborted) {
-          setBookings(result.data ?? []);
+    async function fetchInitialBookings() {
+      try {
+        const data = await loadBookings(controller.signal);
+
+        if (!controller.signal.aborted) {
+          setBookings(data);
           setError("");
         }
       } catch (err) {
-        if (signal?.aborted) return;
+        if (controller.signal.aborted) return;
+
+        if (
+          err instanceof Error &&
+          err.message === "UNAUTHORIZED"
+        ) {
+          router.replace("/login");
+          return;
+        }
 
         setError(
           err instanceof Error
@@ -179,79 +277,43 @@ export default function MyBookingsPage() {
             : "Could not load your bookings."
         );
       } finally {
-        if (!signal?.aborted) {
+        if (!controller.signal.aborted) {
           setLoading(false);
-          setRefreshing(false);
         }
-      }
-    },
-    [router]
-  );
-
-  useEffect(() => {
-  if (checkingSession) return;
-
-  if (!userId) {
-    router.replace("/login");
-    return;
-  }
-
-  const controller = new AbortController();
-
-  async function fetchInitialBookings() {
-    try {
-      const response = await fetch(
-        `${API_URL}/api/bookings/my`,
-        {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-          signal: controller.signal,
-        }
-      );
-
-      if (response.status === 401) {
-        router.replace("/login");
-        return;
-      }
-
-      const result: BookingsResponse = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.message || "Failed to load bookings."
-        );
-      }
-
-      if (!controller.signal.aborted) {
-        setBookings(result.data ?? []);
-        setError("");
-      }
-    } catch (err) {
-      if (controller.signal.aborted) return;
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load your bookings."
-      );
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
       }
     }
-  }
 
-  void fetchInitialBookings();
+    void fetchInitialBookings();
 
-  return () => controller.abort();
-}, [checkingSession, userId, router]);
+    return () => controller.abort();
+  }, [checkingSession, userId, router, loadBookings]);
 
   async function handleRefresh() {
-    if (refreshing || loading) return;
+    if (loading || refreshing) return;
 
     setRefreshing(true);
-    await loadBookings();
+
+    try {
+      const data = await loadBookings();
+      setBookings(data);
+      setError("");
+      toast.success("Bookings updated.");
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message === "UNAUTHORIZED"
+      ) {
+        router.replace("/login");
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not refresh bookings."
+        );
+      }
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function handleCancelBooking(id: string) {
@@ -271,47 +333,276 @@ export default function MyBookingsPage() {
         }
       );
 
-      const result: {
-        success: boolean;
-        message?: string;
-      } = await response.json();
+      const result: ApiResponse = await response.json();
 
       if (response.status === 401) {
-        toast.error("Please log in again.");
-        setConfirmId(null);
         router.replace("/login");
         return;
       }
 
       if (!response.ok || !result.success) {
         toast.error(
-          result.message || "Could not cancel the booking."
+          result.message || "Could not cancel booking."
         );
-        setConfirmId(null);
-        await loadBookings();
         return;
       }
 
-      setBookings((current) =>
-        current.map(
-          (booking): Booking =>
-            booking._id === id
-              ? { ...booking, status: "cancelled" }
-              : booking
-        )
+      toast.success(
+        result.message || "Booking cancelled."
       );
 
       setConfirmId(null);
-      toast.success(
-        result.message || "Booking cancelled successfully!"
-      );
-
-      await loadBookings();
+      await handleRefreshAfterAction();
     } catch (err) {
       console.error("Cancel booking error:", err);
-      toast.error("Unable to connect to the booking server.");
+      toast.error("Could not connect to the server.");
     } finally {
       setCancellingId(null);
+    }
+  }
+
+  async function handleRefreshAfterAction() {
+    try {
+      const data = await loadBookings();
+      setBookings(data);
+      setError("");
+    } catch {
+      toast.error("Please refresh the bookings page.");
+    }
+  }
+
+  function openReschedule(booking: Booking) {
+    if (booking.status !== "pending") return;
+
+    setRescheduleBooking(booking);
+    setNewDate(booking.date);
+    setNewStart(booking.startTime);
+    setNewEnd(booking.endTime);
+    setAvailability([]);
+    setAvailabilityError("");
+    setRefreshSlots((value) => value + 1);
+  }
+
+  // Keep availability associated with the selected booking
+  // and date, so an old response cannot be used incorrectly.
+  const availabilityKey = rescheduleBooking
+    ? `${rescheduleBooking._id}|${newDate}|${refreshSlots}`
+    : "";
+
+  const [availabilityResult, setAvailabilityResult] =
+    useState<{
+      key: string;
+      slots: Slot[];
+      error: string;
+    } | null>(null);
+
+  useEffect(() => {
+    if (!rescheduleBooking || !newDate) return;
+
+    const controller = new AbortController();
+
+    async function fetchAvailability() {
+      try {
+        const response = await fetch(
+          `${API_URL}/api/bookings/availability/${
+            rescheduleBooking!.studioId
+          }?date=${encodeURIComponent(newDate)}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+
+        const result: AvailabilityResponse =
+          await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message ||
+              "Unable to load available times."
+          );
+        }
+
+        if (!result.data?.slots) {
+          throw new Error("Invalid availability response.");
+        }
+
+        if (!controller.signal.aborted) {
+          setAvailabilityResult({
+            key: availabilityKey,
+            slots: result.data.slots,
+            error: "",
+          });
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          setAvailabilityResult({
+            key: availabilityKey,
+            slots: [],
+            error:
+              err instanceof Error
+                ? err.message
+                : "Failed to load availability.",
+          });
+        }
+      }
+    }
+
+    void fetchAvailability();
+
+    return () => controller.abort();
+  }, [
+    rescheduleBooking,
+    newDate,
+    refreshSlots,
+    availabilityKey,
+  ]);
+
+  const currentAvailability =
+    availabilityResult?.key === availabilityKey
+      ? availabilityResult
+      : null;
+
+  const currentSlots =
+    currentAvailability?.slots ?? [];
+
+  const slotsLoading =
+    Boolean(rescheduleBooking && newDate) &&
+    currentAvailability === null;
+
+  // The existing booking occupies its own original slots.
+  // Those slots may be reused when moving or extending it,
+  // because the backend excludes this booking from its
+  // conflict check.
+  function slotAvailable(slot: Slot) {
+    if (slot.available) return true;
+
+    if (
+      !rescheduleBooking ||
+      newDate !== rescheduleBooking.date ||
+      slot.reason !== "reserved"
+    ) {
+      return false;
+    }
+
+    return (
+      toMinutes(slot.startTime) >=
+        toMinutes(rescheduleBooking.startTime) &&
+      toMinutes(slot.endTime) <=
+        toMinutes(rescheduleBooking.endTime)
+    );
+  }
+
+  const selectedStart = toMinutes(newStart);
+  const selectedEnd = toMinutes(newEnd);
+
+  const selectedSlots = currentSlots.filter(
+    (slot) =>
+      toMinutes(slot.startTime) >= selectedStart &&
+      toMinutes(slot.startTime) < selectedEnd
+  );
+
+  const validSelection =
+    newDate >= today &&
+    selectedEnd > selectedStart &&
+    selectedStart >= 480 &&
+    selectedEnd <= 1200 &&
+    selectedSlots.length ===
+      (selectedEnd - selectedStart) / 30 &&
+    selectedSlots.every(slotAvailable) &&
+    !slotsLoading &&
+    !currentAvailability?.error;
+
+  const isUnchanged =
+    Boolean(rescheduleBooking) &&
+    newDate === rescheduleBooking?.date &&
+    newStart === rescheduleBooking?.startTime &&
+    newEnd === rescheduleBooking?.endTime;
+
+  const newDuration = Math.max(
+    0,
+    (selectedEnd - selectedStart) / 60
+  );
+
+  const estimatedRate =
+    rescheduleBooking?.hourlyRate ??
+    (rescheduleBooking?.duration
+      ? rescheduleBooking.rentalCost /
+        rescheduleBooking.duration
+      : 0);
+
+  const estimatedTotal =
+    Math.round(
+      (newDuration * estimatedRate +
+        (rescheduleBooking?.securityDeposit ?? 0)) *
+        100
+    ) / 100;
+
+  async function handleReschedule() {
+    if (
+      !rescheduleBooking ||
+      !validSelection ||
+      isUnchanged ||
+      saving
+    ) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/bookings/${
+          rescheduleBooking._id
+        }/reschedule`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            date: newDate,
+            startTime: newStart,
+            endTime: newEnd,
+          }),
+        }
+      );
+
+      const result: ApiResponse = await response.json();
+
+      if (response.status === 401) {
+        toast.error("Please log in again.");
+        router.replace("/login");
+        return;
+      }
+
+      if (!response.ok || !result.success) {
+        toast.error(
+          result.message ||
+            "Could not reschedule booking."
+        );
+
+        if (response.status === 409) {
+          setRefreshSlots((value) => value + 1);
+          await handleRefreshAfterAction();
+        }
+
+        return;
+      }
+
+      toast.success(
+        result.message || "Booking rescheduled!"
+      );
+
+      setRescheduleBooking(null);
+      await handleRefreshAfterAction();
+    } catch (err) {
+      console.error("Rescheduling error:", err);
+      toast.error("Could not connect to the server.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -341,7 +632,6 @@ export default function MyBookingsPage() {
 
   return (
     <main className="min-h-[80vh] bg-[#f8f7fd]">
-      {/* Page heading */}
       <section className="border-b border-violet-100 bg-white">
         <div className="mx-auto max-w-7xl px-5 py-12 sm:py-16">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium text-violet-700">
@@ -355,8 +645,8 @@ export default function MyBookingsPage() {
                 My Bookings
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-                Review your studio reservations, track their
-                status, and cancel pending bookings.
+                Review your studio reservations, reschedule
+                pending bookings, and track their status.
               </p>
             </div>
 
@@ -372,7 +662,6 @@ export default function MyBookingsPage() {
       </section>
 
       <div className="mx-auto max-w-7xl px-5 py-10">
-        {/* Summary */}
         <div className="mb-9 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {[
             {
@@ -417,7 +706,6 @@ export default function MyBookingsPage() {
           })}
         </div>
 
-        {/* Filter toolbar */}
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex flex-wrap gap-2">
             {filters.map((item) => (
@@ -450,7 +738,6 @@ export default function MyBookingsPage() {
           </button>
         </div>
 
-        {/* Loading */}
         {loading ? (
           <div className="flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl bg-white">
             <LoaderCircle className="h-9 w-9 animate-spin text-violet-700" />
@@ -459,7 +746,6 @@ export default function MyBookingsPage() {
             </p>
           </div>
         ) : error ? (
-          /* API error */
           <div className="rounded-2xl border border-red-100 bg-white px-6 py-14 text-center">
             <XCircle className="mx-auto mb-4 h-10 w-10 text-red-500" />
             <h2 className="text-xl font-bold text-slate-950">
@@ -477,44 +763,30 @@ export default function MyBookingsPage() {
             </button>
           </div>
         ) : visibleBookings.length === 0 ? (
-          /* Empty list */
           <div className="rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center shadow-sm">
-            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-violet-50">
-              <Search size={35} className="text-violet-600" />
-            </div>
-
+            <Search
+              size={35}
+              className="mx-auto mb-5 text-violet-600"
+            />
             <h2 className="text-xl font-bold text-slate-950">
               {filter === "all"
                 ? "No bookings yet"
                 : `No ${filter} bookings`}
             </h2>
-
-            <p className="mx-auto mt-3 max-w-sm text-sm leading-7 text-slate-500">
+            <p className="mt-3 text-sm text-slate-500">
               {filter === "all"
                 ? "Explore studios and book your first session."
                 : "There are no bookings matching this filter."}
             </p>
-
-            {filter === "all" ? (
-              <Link
-                href="/studios"
-                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
-              >
-                Find a Studio
-                <ArrowRight size={17} />
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setFilter("all")}
-                className="mt-6 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
-              >
-                View All Bookings
-              </button>
-            )}
+            <Link
+              href="/studios"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-violet-700 px-6 py-3 text-sm font-semibold text-white"
+            >
+              Find a Studio
+              <ArrowRight size={17} />
+            </Link>
           </div>
         ) : (
-          /* Booking cards */
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             {visibleBookings.map((booking) => (
               <article
@@ -538,7 +810,7 @@ export default function MyBookingsPage() {
                     <div className="flex items-start gap-3">
                       <CalendarDays
                         size={19}
-                        className="mt-0.5 shrink-0 text-violet-700"
+                        className="mt-0.5 text-violet-700"
                       />
                       <div>
                         <p className="text-xs text-slate-500">
@@ -553,7 +825,7 @@ export default function MyBookingsPage() {
                     <div className="flex items-start gap-3">
                       <Clock3
                         size={19}
-                        className="mt-0.5 shrink-0 text-violet-700"
+                        className="mt-0.5 text-violet-700"
                       />
                       <div>
                         <p className="text-xs text-slate-500">
@@ -569,7 +841,7 @@ export default function MyBookingsPage() {
                     <div className="flex items-start gap-3">
                       <ShieldCheck
                         size={19}
-                        className="mt-0.5 shrink-0 text-violet-700"
+                        className="mt-0.5 text-violet-700"
                       />
                       <div>
                         <p className="text-xs text-slate-500">
@@ -587,7 +859,7 @@ export default function MyBookingsPage() {
                     <div className="flex items-start gap-3">
                       <Wallet
                         size={19}
-                        className="mt-0.5 shrink-0 text-violet-700"
+                        className="mt-0.5 text-violet-700"
                       />
                       <div>
                         <p className="text-xs text-slate-500">
@@ -625,7 +897,7 @@ export default function MyBookingsPage() {
                       className="text-violet-700"
                     />
                     {booking.status === "pending"
-                      ? "Awaiting booking confirmation"
+                      ? "Awaiting host confirmation"
                       : booking.status === "confirmed"
                         ? "Your booking has been confirmed"
                         : "This reservation was cancelled"}
@@ -640,15 +912,26 @@ export default function MyBookingsPage() {
                   </Link>
 
                   {booking.status === "pending" && (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmId(booking._id)}
-                      disabled={Boolean(cancellingId)}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-                    >
-                      <XCircle size={17} />
-                      Cancel Booking
-                    </button>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => openReschedule(booking)}
+                        disabled={Boolean(cancellingId)}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-50"
+                      >
+                        <CalendarClock size={17} />
+                        Reschedule
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmId(booking._id)}
+                        disabled={Boolean(cancellingId)}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <XCircle size={17} />
+                        Cancel Booking
+                      </button>
+                    </div>
                   )}
                 </div>
               </article>
@@ -656,6 +939,234 @@ export default function MyBookingsPage() {
           </div>
         )}
       </div>
+
+      {/* Reschedule modal */}
+      {rescheduleBooking && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reschedule-title"
+            className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#21172f]"
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 p-5 dark:border-violet-400/20">
+              <div>
+                <h2
+                  id="reschedule-title"
+                  className="text-xl font-bold text-slate-950 dark:text-white"
+                >
+                  Reschedule Booking
+                </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-violet-200">
+                  {rescheduleBooking.studioTitle}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setRescheduleBooking(null)}
+                aria-label="Close rescheduling"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-violet-200"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="max-h-[65vh] space-y-5 overflow-y-auto p-5">
+              <div className="rounded-xl bg-violet-50 p-4 text-sm text-violet-800 dark:bg-violet-500/10 dark:text-violet-200">
+                Current booking:{" "}
+                <strong>{formatDate(rescheduleBooking.date)}</strong>
+                {" · "}
+                {formatTime(rescheduleBooking.startTime)}
+                {" – "}
+                {formatTime(rescheduleBooking.endTime)}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="reschedule-date"
+                  className="mb-2 block text-sm font-semibold text-slate-900 dark:text-white"
+                >
+                  New Booking Date
+                </label>
+                <input
+                  id="reschedule-date"
+                  type="date"
+                  min={today}
+                  value={newDate}
+                  disabled={saving}
+                  onChange={(event) =>
+                    setNewDate(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 dark:border-violet-400/30 dark:bg-[#30213f] dark:text-white"
+                />
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    Available Time Slots
+                  </h3>
+                  <button
+                    type="button"
+                    disabled={slotsLoading || saving}
+                    onClick={() =>
+                      setRefreshSlots((value) => value + 1)
+                    }
+                    className="rounded-lg p-2 text-violet-700 hover:bg-violet-50 dark:text-violet-300"
+                    aria-label="Refresh available slots"
+                  >
+                    <RefreshCw
+                      size={17}
+                      className={
+                        slotsLoading ? "animate-spin" : ""
+                      }
+                    />
+                  </button>
+                </div>
+
+                {slotsLoading ? (
+                  <div className="flex justify-center gap-2 py-5 text-sm text-violet-700">
+                    <LoaderCircle
+                      size={18}
+                      className="animate-spin"
+                    />
+                    Checking availability...
+                  </div>
+                ) : currentAvailability?.error ? (
+                  <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                    {currentAvailability.error}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                    {currentSlots.map((slot) => {
+                      const available = slotAvailable(slot);
+
+                      return (
+                        <button
+                          key={slot.startTime}
+                          type="button"
+                          disabled={!available || saving}
+                          onClick={() => {
+                            setNewStart(slot.startTime);
+                            setNewEnd(slot.endTime);
+                          }}
+                          className={`rounded-lg border px-2 py-2 text-xs font-semibold ${
+                            !available
+                              ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 dark:bg-white/5"
+                              : newStart === slot.startTime
+                                ? "border-violet-700 bg-violet-700 text-white"
+                                : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-200"
+                          }`}
+                        >
+                          {formatTime(slot.startTime)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Start Time
+                  <select
+                    value={newStart}
+                    disabled={saving}
+                    onChange={(event) =>
+                      setNewStart(event.target.value)
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-violet-400/30 dark:bg-[#30213f] dark:text-white"
+                  >
+                    {TIME_OPTIONS.slice(0, -1).map((time) => (
+                      <option key={time} value={time}>
+                        {formatTime(time)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm font-semibold text-slate-900 dark:text-white">
+                  End Time
+                  <select
+                    value={newEnd}
+                    disabled={saving}
+                    onChange={(event) =>
+                      setNewEnd(event.target.value)
+                    }
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm dark:border-violet-400/30 dark:bg-[#30213f] dark:text-white"
+                  >
+                    {TIME_OPTIONS.slice(1).map((time) => (
+                      <option key={time} value={time}>
+                        {formatTime(time)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {!isUnchanged && (
+                <div
+                  className={`rounded-xl border p-3 text-sm ${
+                    validSelection
+                      ? "border-green-200 bg-green-50 text-green-800"
+                      : "border-amber-200 bg-amber-50 text-amber-900"
+                  }`}
+                >
+                  {validSelection
+                    ? "This time is currently available."
+                    : "Choose a free time range. All selected slots must be available."}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-violet-200 p-4 dark:border-violet-400/20">
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm text-slate-600 dark:text-violet-200">
+                    Estimated New Total
+                  </span>
+                  <span className="text-lg font-bold text-violet-700 dark:text-violet-300">
+                    {formatMoney(estimatedTotal)}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-slate-500 dark:text-violet-200">
+                  The server will calculate the final amount
+                  using the studio&apos;s current hourly rate.
+                  Your booking remains pending.
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-100 p-5 dark:border-violet-400/20">
+              <button
+                type="button"
+                onClick={handleReschedule}
+                disabled={
+                  saving ||
+                  slotsLoading ||
+                  !validSelection ||
+                  isUnchanged
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white hover:bg-violet-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? (
+                  <>
+                    <LoaderCircle
+                      size={18}
+                      className="animate-spin"
+                    />
+                    Saving Changes...
+                  </>
+                ) : (
+                  <>
+                    <CalendarClock size={18} />
+                    Confirm Reschedule
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancellation confirmation */}
       {confirmId && (
@@ -682,9 +1193,9 @@ export default function MyBookingsPage() {
               id="cancel-description"
               className="mt-3 text-sm leading-6 text-slate-600"
             >
-              This will cancel your pending reservation and make
-              the time slot available again. This action cannot
-              be undone.
+              This will cancel your pending reservation
+              and release its reserved time slots.
+              This action cannot be undone.
             </p>
 
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -700,7 +1211,9 @@ export default function MyBookingsPage() {
               <button
                 type="button"
                 disabled={Boolean(cancellingId)}
-                onClick={() => void handleCancelBooking(confirmId)}
+                onClick={() =>
+                  void handleCancelBooking(confirmId)
+                }
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {cancellingId ? (
