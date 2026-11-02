@@ -7,9 +7,11 @@ import Link from "next/link";
 import {
   ArrowRight,
   Building2,
+  CheckCircle2,
   ExternalLink,
   LoaderCircle,
   MapPin,
+  Navigation,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -26,10 +28,18 @@ type StudiosResponse = {
   data?: Studio[];
 };
 
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
 function money(value: number) {
-  return `$${Number(value || 0).toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  })}`;
+  return `$${Number(value || 0).toLocaleString(
+    "en-US",
+    {
+      maximumFractionDigits: 2,
+    }
+  )}`;
 }
 
 function isBookable(studio: Studio) {
@@ -40,6 +50,73 @@ function isBookable(studio: Studio) {
   );
 }
 
+function getCoordinates(
+  studio: Studio
+): Coordinates | null {
+  const latitude = studio.coordinates?.latitude;
+  const longitude = studio.coordinates?.longitude;
+
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+  };
+}
+
+function buildMapLinks(studio: Studio) {
+  const coordinates = getCoordinates(studio);
+
+  if (coordinates) {
+    const point =
+      `${coordinates.latitude},${coordinates.longitude}`;
+
+    return {
+      exact: true,
+      embed:
+        `https://maps.google.com/maps?q=${encodeURIComponent(
+          point
+        )}&z=16&output=embed`,
+      open:
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          point
+        )}`,
+      directions:
+        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+          point
+        )}`,
+    };
+  }
+
+  const area = studio.location?.trim() || "";
+
+  return {
+    exact: false,
+    embed: area
+      ? `https://maps.google.com/maps?q=${encodeURIComponent(
+          area
+        )}&output=embed`
+      : "",
+    open: area
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          area
+        )}`
+      : "",
+    directions: "",
+  };
+}
+
 export default function StudioLocationsPage() {
   const [studios, setStudios] = useState<Studio[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,26 +124,33 @@ export default function StudioLocationsPage() {
 
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
-  const [availability, setAvailability] = useState("all");
-  const [selectedId, setSelectedId] = useState<string | null>(
-    null
-  );
+  const [availability, setAvailability] =
+    useState("all");
+
+  const [exactOnly, setExactOnly] = useState(false);
+
+  const [selectedId, setSelectedId] =
+    useState<string | null>(null);
+
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // ==========================================
+  // FETCH STUDIO DATA
+  // ==========================================
 
   useEffect(() => {
     const controller = new AbortController();
 
-    async function loadStudios() {
-      try {
-        const response = await fetch(
-          `${API_URL}/api/studios`,
-          {
-            cache: "no-store",
-            headers: { Accept: "application/json" },
-            signal: controller.signal,
-          }
-        );
+    const request = fetch(`${API_URL}/api/studios`, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    });
 
+    request
+      .then(async (response) => {
         const result: StudiosResponse =
           await response.json();
 
@@ -76,43 +160,58 @@ export default function StudioLocationsPage() {
           !Array.isArray(result.data)
         ) {
           throw new Error(
-            result.message || "Unable to load studios."
+            result.message ||
+              "Unable to load studios."
           );
         }
 
-        if (!controller.signal.aborted) {
-          setStudios(result.data);
-          setError("");
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load studios."
-          );
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    }
+        return result.data;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
 
-    void loadStudios();
+        setStudios(data);
+        setError("");
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load studios."
+        );
+
+        setLoading(false);
+      });
 
     return () => controller.abort();
   }, [refreshKey]);
 
+  // ==========================================
+  // FILTER OPTIONS
+  // ==========================================
+
   const locations = useMemo(() => {
     const values = studios
       .map((studio) => studio.location?.trim())
-      .filter((value): value is string => Boolean(value));
+      .filter(
+        (value): value is string => Boolean(value)
+      );
 
     return [...new Set(values)].sort((a, b) =>
       a.localeCompare(b)
     );
   }, [studios]);
+
+  const exactLocationCount = useMemo(
+    () =>
+      studios.filter(
+        (studio) => getCoordinates(studio) !== null
+      ).length,
+    [studios]
+  );
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -121,7 +220,10 @@ export default function StudioLocationsPage() {
       const matchesSearch =
         studio.title.toLowerCase().includes(term) ||
         studio.category.toLowerCase().includes(term) ||
-        studio.location.toLowerCase().includes(term);
+        studio.location.toLowerCase().includes(term) ||
+        (studio.fullAddress || "")
+          .toLowerCase()
+          .includes(term);
 
       const matchesLocation =
         location === "all" ||
@@ -134,39 +236,59 @@ export default function StudioLocationsPage() {
         (availability === "unavailable" &&
           !isBookable(studio));
 
+      const matchesCoordinates =
+        !exactOnly || getCoordinates(studio) !== null;
+
       return (
         matchesSearch &&
         matchesLocation &&
-        matchesAvailability
+        matchesAvailability &&
+        matchesCoordinates
       );
     });
-  }, [studios, search, location, availability]);
+  }, [
+    studios,
+    search,
+    location,
+    availability,
+    exactOnly,
+  ]);
+
+  // ==========================================
+  // SELECTED STUDIO
+  // ==========================================
 
   const selectedStudio =
-    filtered.find((studio) => studio._id === selectedId) ??
+    filtered.find(
+      (studio) => studio._id === selectedId
+    ) ??
     filtered[0] ??
     null;
 
-  // A location string is an area/search query,
-  // not an independently verified studio pin.
-  const mapQuery = selectedStudio?.location?.trim() || "";
+  const mapLinks = selectedStudio
+    ? buildMapLinks(selectedStudio)
+    : null;
 
-  const mapEmbedUrl = mapQuery
-    ? `https://www.google.com/maps?q=${encodeURIComponent(
-        mapQuery
-      )}&output=embed`
-    : "";
-
-  const mapSearchUrl = mapQuery
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        mapQuery
-      )}`
-    : "";
+  const coordinates = selectedStudio
+    ? getCoordinates(selectedStudio)
+    : null;
 
   function refresh() {
     setLoading(true);
-    setRefreshKey((current) => current + 1);
+    setRefreshKey((value) => value + 1);
   }
+
+  function clearFilters() {
+    setSearch("");
+    setLocation("all");
+    setAvailability("all");
+    setExactOnly(false);
+    setSelectedId(null);
+  }
+
+  // ==========================================
+  // PAGE
+  // ==========================================
 
   return (
     <main className="min-h-screen">
@@ -185,15 +307,15 @@ export default function StudioLocationsPage() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-violet-100 sm:text-base">
-            Browse creative studios by area, compare their
-            locations, and explore the surrounding neighborhood
-            before making a booking.
+            Browse creative studios by location, explore
+            their surroundings, and find directions to
+            studios with published map coordinates.
           </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-10 md:py-14">
-        {/* Filters */}
+        {/* Filter panel */}
         <div
           className="mb-7 rounded-2xl border p-5"
           style={{
@@ -202,6 +324,7 @@ export default function StudioLocationsPage() {
           }}
         >
           <div className="grid gap-4 md:grid-cols-3">
+            {/* Search */}
             <div>
               <label
                 htmlFor="location-search"
@@ -215,7 +338,9 @@ export default function StudioLocationsPage() {
                 <Search
                   size={17}
                   className="absolute left-4 top-1/2 -translate-y-1/2"
-                  style={{ color: "var(--ss-muted)" }}
+                  style={{
+                    color: "var(--ss-muted)",
+                  }}
                 />
 
                 <input
@@ -225,7 +350,7 @@ export default function StudioLocationsPage() {
                   onChange={(event) =>
                     setSearch(event.target.value)
                   }
-                  placeholder="Studio, city or category..."
+                  placeholder="Studio, address, city..."
                   className="w-full rounded-xl border py-3 pl-11 pr-4 text-sm outline-none focus:border-violet-500"
                   style={{
                     background: "var(--ss-surface-alt)",
@@ -236,11 +361,14 @@ export default function StudioLocationsPage() {
               </div>
             </div>
 
+            {/* Area */}
             <div>
               <label
                 htmlFor="location-filter"
                 className="mb-2 block text-sm font-semibold"
-                style={{ color: "var(--ss-ink)" }}
+                style={{
+                  color: "var(--ss-ink)",
+                }}
               >
                 Location
               </label>
@@ -258,20 +386,29 @@ export default function StudioLocationsPage() {
                   color: "var(--ss-ink)",
                 }}
               >
-                <option value="all">All Locations</option>
+                <option value="all">
+                  All Locations
+                </option>
+
                 {locations.map((item) => (
-                  <option key={item} value={item}>
+                  <option
+                    key={item}
+                    value={item}
+                  >
                     {item}
                   </option>
                 ))}
               </select>
             </div>
 
+            {/* Availability */}
             <div>
               <label
                 htmlFor="availability-filter"
                 className="mb-2 flex items-center gap-2 text-sm font-semibold"
-                style={{ color: "var(--ss-ink)" }}
+                style={{
+                  color: "var(--ss-ink)",
+                }}
               >
                 <SlidersHorizontal size={16} />
                 Booking Status
@@ -290,8 +427,14 @@ export default function StudioLocationsPage() {
                   color: "var(--ss-ink)",
                 }}
               >
-                <option value="all">All Studios</option>
-                <option value="bookable">Bookable Only</option>
+                <option value="all">
+                  All Studios
+                </option>
+
+                <option value="bookable">
+                  Bookable Only
+                </option>
+
                 <option value="unavailable">
                   Unavailable Only
                 </option>
@@ -299,30 +442,81 @@ export default function StudioLocationsPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <p
-              className="text-xs"
-              style={{ color: "var(--ss-muted)" }}
+          {/* Additional filters */}
+          <div
+            className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t pt-5"
+            style={{
+              borderColor: "var(--ss-border)",
+            }}
+          >
+            <label
+              className="inline-flex cursor-pointer items-center gap-3 text-sm font-semibold"
+              style={{ color: "var(--ss-ink)" }}
             >
-              {filtered.length} matching studio
-              {filtered.length === 1 ? "" : "s"}
-            </p>
-
-            <button
-              type="button"
-              onClick={refresh}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-500/10 disabled:opacity-50 dark:text-violet-300"
-            >
-              <RefreshCw
-                size={15}
-                className={loading ? "animate-spin" : ""}
+              <input
+                type="checkbox"
+                checked={exactOnly}
+                onChange={(event) =>
+                  setExactOnly(event.target.checked)
+                }
+                className="h-4 w-4 accent-violet-700"
               />
-              Refresh
-            </button>
+
+              <MapPin
+                size={17}
+                className="text-violet-600 dark:text-violet-300"
+              />
+
+              Exact Locations Only
+            </label>
+
+            <div className="flex flex-wrap items-center gap-4">
+              <span
+                className="text-xs"
+                style={{ color: "var(--ss-muted)" }}
+              >
+                {exactLocationCount} studio
+                {exactLocationCount === 1 ? "" : "s"}{" "}
+                with coordinates
+              </span>
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300"
+              >
+                Clear Filters
+              </button>
+
+              <button
+                type="button"
+                onClick={refresh}
+                disabled={loading}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-500/10 disabled:opacity-50 dark:text-violet-300"
+              >
+                <RefreshCw
+                  size={15}
+                  className={
+                    loading ? "animate-spin" : ""
+                  }
+                />
+                Refresh
+              </button>
+            </div>
           </div>
+
+          <p
+            className="mt-4 text-xs"
+            style={{ color: "var(--ss-muted)" }}
+          >
+            Showing {filtered.length} matching{" "}
+            {filtered.length === 1
+              ? "studio"
+              : "studios"}
+          </p>
         </div>
 
+        {/* Loading */}
         {loading ? (
           <div className="flex min-h-72 items-center justify-center gap-3 text-violet-700 dark:text-violet-300">
             <LoaderCircle
@@ -332,6 +526,7 @@ export default function StudioLocationsPage() {
             Loading studio locations...
           </div>
         ) : error ? (
+          /* Error */
           <div className="ss-card p-10 text-center">
             <h2 className="text-lg font-bold text-red-600">
               Unable to load studios
@@ -350,8 +545,9 @@ export default function StudioLocationsPage() {
             </button>
           </div>
         ) : (
+          /* Explorer layout */
           <div className="grid items-start gap-6 lg:grid-cols-[390px_minmax(0,1fr)]">
-            {/* Studio list */}
+            {/* Studio listings */}
             <div
               className="overflow-hidden rounded-2xl border"
               style={{
@@ -361,7 +557,9 @@ export default function StudioLocationsPage() {
             >
               <div
                 className="border-b p-5"
-                style={{ borderColor: "var(--ss-border)" }}
+                style={{
+                  borderColor: "var(--ss-border)",
+                }}
               >
                 <h2
                   className="text-lg font-extrabold"
@@ -372,9 +570,11 @@ export default function StudioLocationsPage() {
 
                 <p
                   className="mt-1 text-xs"
-                  style={{ color: "var(--ss-muted)" }}
+                  style={{
+                    color: "var(--ss-muted)",
+                  }}
                 >
-                  Select a studio to explore its area.
+                  Select a studio to view its map.
                 </p>
               </div>
 
@@ -388,7 +588,9 @@ export default function StudioLocationsPage() {
 
                     <p
                       className="mt-3 text-sm"
-                      style={{ color: "var(--ss-muted)" }}
+                      style={{
+                        color: "var(--ss-muted)",
+                      }}
                     >
                       No studios match your filters.
                     </p>
@@ -397,6 +599,9 @@ export default function StudioLocationsPage() {
                   filtered.map((studio) => {
                     const selected =
                       selectedStudio?._id === studio._id;
+
+                    const exact =
+                      getCoordinates(studio) !== null;
 
                     return (
                       <button
@@ -434,14 +639,18 @@ export default function StudioLocationsPage() {
                         <span className="min-w-0 flex-1">
                           <span
                             className="block truncate text-sm font-bold"
-                            style={{ color: "var(--ss-ink)" }}
+                            style={{
+                              color: "var(--ss-ink)",
+                            }}
                           >
                             {studio.title}
                           </span>
 
                           <span
                             className="mt-1 flex items-start gap-1.5 text-xs"
-                            style={{ color: "var(--ss-muted)" }}
+                            style={{
+                              color: "var(--ss-muted)",
+                            }}
                           >
                             <MapPin
                               size={13}
@@ -465,6 +674,26 @@ export default function StudioLocationsPage() {
                               ? "Accepting bookings"
                               : "Currently unavailable"}
                           </span>
+
+                          <span
+                            className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold ${
+                              exact
+                                ? "text-violet-700 dark:text-violet-300"
+                                : "text-slate-500 dark:text-violet-200"
+                            }`}
+                          >
+                            {exact ? (
+                              <>
+                                <CheckCircle2 size={13} />
+                                Coordinates provided
+                              </>
+                            ) : (
+                              <>
+                                <MapPin size={13} />
+                                Area map only
+                              </>
+                            )}
+                          </span>
                         </span>
                       </button>
                     );
@@ -481,24 +710,56 @@ export default function StudioLocationsPage() {
                 borderColor: "var(--ss-border)",
               }}
             >
-              {selectedStudio && mapQuery ? (
+              {selectedStudio && mapLinks?.embed ? (
                 <>
-                  <div className="flex flex-wrap items-center justify-between gap-4 p-5">
-                    <div>
+                  <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+                    <div className="min-w-0">
                       <h2
                         className="text-lg font-extrabold"
-                        style={{ color: "var(--ss-ink)" }}
+                        style={{
+                          color: "var(--ss-ink)",
+                        }}
                       >
                         {selectedStudio.title}
                       </h2>
 
                       <p
-                        className="mt-1 flex items-center gap-2 text-sm"
-                        style={{ color: "var(--ss-muted)" }}
+                        className="mt-2 flex items-start gap-2 text-sm"
+                        style={{
+                          color: "var(--ss-muted)",
+                        }}
                       >
-                        <MapPin size={16} />
+                        <MapPin
+                          size={16}
+                          className="mt-0.5 shrink-0"
+                        />
                         {selectedStudio.location}
                       </p>
+
+                      {selectedStudio.fullAddress && (
+                        <p
+                          className="mt-2 text-sm leading-6"
+                          style={{
+                            color: "var(--ss-ink)",
+                          }}
+                        >
+                          <strong>Address:</strong>{" "}
+                          {selectedStudio.fullAddress}
+                        </p>
+                      )}
+
+                      {coordinates && (
+                        <p
+                          className="mt-2 text-xs"
+                          style={{
+                            color: "var(--ss-muted)",
+                          }}
+                        >
+                          Coordinates:{" "}
+                          {coordinates.latitude.toFixed(6)},{" "}
+                          {coordinates.longitude.toFixed(6)}
+                        </p>
+                      )}
                     </div>
 
                     <Link
@@ -510,40 +771,62 @@ export default function StudioLocationsPage() {
                     </Link>
                   </div>
 
+                  {/* Coordinates take priority over area */}
                   <iframe
-                    key={mapQuery}
-                    title={`Map search for ${selectedStudio.location}`}
-                    src={mapEmbedUrl}
+                    key={`${selectedStudio._id}-${mapLinks.embed}`}
+                    title={
+                      mapLinks.exact
+                        ? `Map for ${selectedStudio.title}`
+                        : `Area map for ${selectedStudio.location}`
+                    }
+                    src={mapLinks.embed}
                     className="h-[380px] w-full border-0 sm:h-[470px] lg:h-[550px]"
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
                     allowFullScreen
                   />
 
+                  {/* Map actions */}
                   <div
                     className="border-t px-5 py-4"
                     style={{
                       borderColor: "var(--ss-border)",
                     }}
                   >
-                    <a
-                      href={mapSearchUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:underline dark:text-violet-300"
-                    >
-                      Open Area in Google Maps
-                      <ExternalLink size={16} />
-                    </a>
+                    <div className="flex flex-wrap gap-3">
+                      <a
+                        href={mapLinks.open}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-xl border border-violet-300/40 px-4 py-2.5 text-xs font-semibold text-violet-700 hover:bg-violet-500/10 dark:text-violet-300"
+                      >
+                        Open in Google Maps
+                        <ExternalLink size={15} />
+                      </a>
+
+                      {mapLinks.exact &&
+                        mapLinks.directions && (
+                          <a
+                            href={mapLinks.directions}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-violet-800"
+                          >
+                            <Navigation size={15} />
+                            Get Directions
+                          </a>
+                        )}
+                    </div>
 
                     <p
-                      className="mt-3 text-xs leading-6"
-                      style={{ color: "var(--ss-muted)" }}
+                      className="mt-4 text-xs leading-6"
+                      style={{
+                        color: "var(--ss-muted)",
+                      }}
                     >
-                      This map searches the listed area,
-                      not a verified studio entrance or
-                      exact property location. Confirm the
-                      address with the host before travelling.
+                      {mapLinks.exact
+                        ? "This map uses coordinates submitted by the studio host. They have not been independently verified. Confirm the entrance and directions before travelling."
+                        : "This map searches the general listed area because the host has not provided exact coordinates. It does not show a verified studio location."}
                     </p>
                   </div>
                 </>
@@ -553,15 +836,21 @@ export default function StudioLocationsPage() {
                     size={42}
                     className="text-violet-500"
                   />
+
                   <h2
                     className="text-lg font-bold"
-                    style={{ color: "var(--ss-ink)" }}
+                    style={{
+                      color: "var(--ss-ink)",
+                    }}
                   >
                     Select a Studio
                   </h2>
+
                   <p
                     className="text-sm"
-                    style={{ color: "var(--ss-muted)" }}
+                    style={{
+                      color: "var(--ss-muted)",
+                    }}
                   >
                     Choose a studio from the list to
                     view its location.
