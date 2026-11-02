@@ -1,10 +1,11 @@
 
 import {
-  Search,
-  CalendarDays,
-  ClipboardCheck,
-  Clapperboard,
   ArrowRight,
+  CalendarDays,
+  Clapperboard,
+  ClipboardCheck,
+  Search,
+  Sparkles,
 } from "lucide-react";
 
 const bookingSteps = [
@@ -24,76 +25,105 @@ const bookingSteps = [
   },
   {
     number: "03",
-    title: "Book Instantly",
+    title: "Request Your Booking",
     description:
-      "Submit your booking request and manage your reservation easily.",
+      "Send a booking request and manage your reservation easily.",
     icon: ClipboardCheck,
   },
   {
     number: "04",
     title: "Create & Produce",
     description:
-      "Visit your booked studio and bring your creative vision to life.",
+      "Visit your confirmed studio and bring your creative vision to life.",
     icon: Clapperboard,
   },
 ];
 
 export default function BookingSteps() {
   return (
-    <section className="bg-white px-5 py-20 md:py-24">
-      <div className="mx-auto max-w-7xl">
-        {/* Section heading */}
-        <div className="mb-14 text-center">
-          <span className="inline-block rounded-full bg-violet-100 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-violet-700">
+    <section
+      id="how-it-works"
+      aria-labelledby="booking-steps-heading"
+      className="ss-home-section scroll-mt-24"
+    >
+      <div className="ss-container">
+        <div className="mx-auto mb-11 max-w-3xl text-center">
+          <span className="ss-kicker">
+            <Sparkles size={14} />
             Simple Booking Process
           </span>
 
-          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-950 md:text-4xl">
+          <h2
+            id="booking-steps-heading"
+            className="ss-heading mt-5"
+          >
             How Booking Works
           </h2>
 
-          <p className="mx-auto mt-4 max-w-2xl text-slate-600">
-            Book your ideal creative studio in four simple steps.
-            Spend less time searching and more time creating.
+          <p className="ss-description mx-auto mt-4 max-w-2xl">
+            From discovering the right studio to bringing
+            your project to life, the process is simple.
           </p>
         </div>
 
-        {/* Steps */}
-        <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
           {bookingSteps.map((step, index) => {
             const Icon = step.icon;
 
             return (
-              <div key={step.number} className="relative">
-                <div className="group flex h-full flex-col items-center rounded-2xl border border-violet-100 bg-[#f8f7fd] px-6 py-10 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
-                  {/* Number */}
-                  <span className="absolute right-5 top-5 text-sm font-bold text-violet-400">
-                    {step.number}
-                  </span>
+              <div
+                key={step.number}
+                className="relative min-w-0"
+              >
+                <article className="ss-card group flex h-full min-h-[258px] flex-col items-center p-6 text-center">
+                  <div className="mb-4 flex w-full justify-end">
+                    <span
+                      className="rounded-full border px-3 py-1 text-xs font-extrabold tracking-wider"
+                      style={{
+                        background: "var(--ss-surface-alt)",
+                        color: "var(--ss-accent)",
+                        borderColor: "var(--ss-border)",
+                      }}
+                    >
+                      {step.number}
+                    </span>
+                  </div>
 
-                  {/* Icon */}
-                  <div className="mb-7 flex h-20 w-20 items-center justify-center rounded-2xl bg-violet-100 transition-colors group-hover:bg-violet-700">
+                  <div className="ss-icon-tile mb-5 transition-transform duration-300 group-hover:scale-110">
                     <Icon
-                      size={36}
+                      size={29}
                       strokeWidth={1.8}
-                      className="text-violet-700 transition-colors group-hover:text-white"
+                      aria-hidden="true"
                     />
                   </div>
 
-                  <h3 className="text-xl font-bold text-slate-950">
+                  <h3
+                    className="text-[17px] font-extrabold tracking-tight"
+                    style={{ color: "var(--ss-ink)" }}
+                  >
                     {step.title}
                   </h3>
 
-                  <p className="mt-4 text-sm leading-7 text-slate-600">
+                  <p
+                    className="mt-3 text-[13px] leading-[1.8]"
+                    style={{ color: "var(--ss-muted)" }}
+                  >
                     {step.description}
                   </p>
-                </div>
+                </article>
 
-                {/* Arrow connector on desktop */}
                 {index < bookingSteps.length - 1 && (
-                  <div className="absolute -right-5 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border border-violet-200 bg-white p-2 text-violet-700 lg:flex">
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-[22px] top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border shadow-md lg:flex"
+                    style={{
+                      background: "var(--ss-surface)",
+                      borderColor: "var(--ss-border)",
+                      color: "var(--ss-accent)",
+                    }}
+                  >
                     <ArrowRight size={17} />
-                  </div>
+                  </span>
                 )}
               </div>
             );

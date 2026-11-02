@@ -3,25 +3,258 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ==========================================
+   STUDIOSPACE — FUTURE GLOW DESIGN SYSTEM
+   Light: Soft lavender-white / purple
+   Dark: Midnight black / violet glow
+   ========================================== */
+
 :root {
   color-scheme: light;
+
+  --ss-bg: #faf7ff;
+
+  --ss-bg-gradient:
+    radial-gradient(
+      ellipse at 12% 16%,
+      rgba(183, 139, 244, 0.17),
+      transparent 48%
+    ),
+    radial-gradient(
+      ellipse at 88% 72%,
+      rgba(216, 170, 250, 0.16),
+      transparent 48%
+    ),
+    linear-gradient(
+      135deg,
+      #ffffff 0%,
+      #fcf9ff 34%,
+      #f8f2ff 69%,
+      #f6efff 100%
+    );
+
+  --ss-ink: #171323;
+  --ss-muted: #686173;
+
+  --ss-surface: #ffffff;
+  --ss-surface-alt: #f5efff;
+  --ss-border: rgba(122, 62, 183, 0.19);
+
+  --ss-accent: #7925c9;
+  --ss-accent-strong: #6420b0;
+
+  --ss-navbar: rgba(255, 255, 255, 0.94);
+  --ss-shadow: 0 12px 35px rgba(102, 43, 153, 0.09);
+
+  --ss-card-glow: rgba(183, 93, 237, 0.27);
+  --ss-card-glow-strong: rgba(186, 88, 241, 0.56);
+
+  --ss-feature-bg: #100c1b;
+  --ss-feature-card: #191327;
+  --ss-feature-border: rgba(172, 128, 236, 0.20);
+  --ss-feature-text: #ffffff;
+  --ss-feature-muted: #c4b8d4;
 }
+
+/* ==========================================
+   DARK MODE — PRESERVED
+   ========================================== */
 
 html.dark {
   color-scheme: dark;
+
+  --ss-bg: #0d0a16;
+
+  --ss-bg-gradient:
+    radial-gradient(
+      ellipse at 50% 24%,
+      rgba(116, 34, 156, 0.15),
+      transparent 54%
+    ),
+    radial-gradient(
+      ellipse at 85% 75%,
+      rgba(74, 38, 156, 0.11),
+      transparent 52%
+    ),
+    linear-gradient(
+      180deg,
+      #0c0913 0%,
+      #110b1c 53%,
+      #0c0a17 100%
+    );
+
+  --ss-ink: #f9f7ff;
+  --ss-muted: #b5aebf;
+
+  --ss-surface: #141020;
+  --ss-surface-alt: #20172f;
+  --ss-border: rgba(160, 121, 216, 0.19);
+
+  --ss-accent: #d087ff;
+  --ss-accent-strong: #b667fa;
+
+  --ss-navbar: rgba(14, 10, 24, 0.94);
+  --ss-shadow: 0 15px 36px rgba(0, 0, 0, 0.35);
+
+  --ss-card-glow: rgba(180, 75, 242, 0.41);
+  --ss-card-glow-strong: rgba(218, 112, 255, 0.70);
+
+  --ss-feature-bg: #100c1b;
+  --ss-feature-card: #191327;
+  --ss-feature-border: rgba(172, 128, 236, 0.20);
+  --ss-feature-text: #ffffff;
+  --ss-feature-muted: #c4b8d4;
 }
+
+/* ==========================================
+   RESET AND BACKGROUND
+   ========================================== */
 
 * {
   box-sizing: border-box;
 }
 
 html {
+  min-height: 100%;
   scroll-behavior: smooth;
+  scroll-padding-top: 94px;
+  background-color: var(--ss-bg);
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
+  color: var(--ss-ink);
+  background-color: var(--ss-bg);
+  background-image: var(--ss-bg-gradient);
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
 }
+
+/* Make page wrappers transparent */
+
+body main {
+  background-color: transparent;
+}
+
+body main.bg-white,
+body main.bg-slate-50,
+body main.bg-\[\#f8f7fd\] {
+  background-color: transparent !important;
+}
+
+/* Light mode gradient remains visible */
+
+html:not(.dark),
+html:not(.dark) body {
+  background-color: var(--ss-bg);
+}
+
+html:not(.dark) body {
+  background-image: var(--ss-bg-gradient);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+/* ==========================================
+   DARK MODE UTILITY COMPATIBILITY
+   ========================================== */
+
+html.dark .bg-white,
+html.dark .bg-white\/95 {
+  background-color: var(--ss-surface);
+}
+
+html.dark .bg-\[\#f8f7fd\],
+html.dark .bg-slate-50,
+html.dark .bg-slate-100 {
+  background-color: var(--ss-surface-alt);
+}
+
+html.dark .bg-violet-50,
+html.dark .bg-violet-100 {
+  background-color: #241a35;
+}
+
+html.dark .bg-green-50 {
+  background-color: #17362e;
+}
+
+html.dark .bg-amber-50 {
+  background-color: #39301b;
+}
+
+html.dark .bg-red-50 {
+  background-color: #3d202c;
+}
+
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: #f9f7ff;
+}
+
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: #c4bacf;
+}
+
+html.dark .text-slate-400 {
+  color: #a79bb9;
+}
+
+html.dark .text-violet-700,
+html.dark .text-violet-800,
+html.dark .text-violet-900 {
+  color: #d7adff;
+}
+
+html.dark .text-green-700 {
+  color: #86efac;
+}
+
+html.dark .text-red-600,
+html.dark .text-red-700 {
+  color: #fda4af;
+}
+
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-950 {
+  color: #fde68a;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-violet-100,
+html.dark .border-violet-200 {
+  border-color: var(--ss-border);
+}
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: #20182e;
+  border-color: #58446c;
+  color: #ffffff;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #a99db9;
+}
+
+html.dark option {
+  background-color: #20182e;
+  color: #ffffff;
+}
+
+/* ==========================================
+   SECTION UTILITIES
+   ========================================== */
 
 .section-wrap {
   max-width: 1280px;
@@ -38,7 +271,7 @@ body {
 
 .section-kicker {
   margin-bottom: 12px;
-  color: #6d28d9;
+  color: var(--ss-accent);
   font-size: 12px;
   font-weight: 850;
   letter-spacing: 0.13em;
@@ -46,31 +279,8 @@ body {
 
 .section-subtitle {
   margin-top: 12px;
-  color: #64748b;
+  color: var(--ss-muted);
   font-size: 15px;
-}
-
-.hero-swiper .swiper-button-prev,
-.hero-swiper .swiper-button-next {
-  color: white;
-  width: 32px;
-  height: 32px;
-}
-
-.hero-swiper .swiper-button-prev:after,
-.hero-swiper .swiper-button-next:after {
-  font-size: 19px;
-  font-weight: 800;
-}
-
-.hero-swiper .swiper-pagination-bullet {
-  background: #fff;
-  opacity: 0.6;
-}
-
-.hero-swiper .swiper-pagination-bullet-active {
-  background: #a78bfa;
-  opacity: 1;
 }
 
 @media (min-width: 768px) {
@@ -79,108 +289,516 @@ body {
   }
 }
 
-/* Dark mode for the existing StudioSpace pages. */
+/* ==========================================
+   HOMEPAGE SECTIONS
+   ========================================== */
 
-html.dark body {
-  background: #0b1020;
-  color: #e2e8f0;
+.ss-home {
+  position: relative;
+  isolation: isolate;
 }
 
-html.dark .bg-white,
-html.dark .bg-white\/95 {
-  background-color: #151e30;
+.ss-home-section {
+  position: relative;
+  padding: 78px 20px;
+  background: transparent;
 }
 
-html.dark .bg-\[\#f8f7fd\] {
-  background-color: #0b1020;
+.ss-container {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
 }
 
-html.dark .bg-slate-50,
-html.dark .bg-slate-100 {
-  background-color: #202b3d;
+.ss-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+
+  border: 1px solid var(--ss-border);
+  border-radius: 999px;
+
+  background: var(--ss-surface-alt);
+  color: var(--ss-accent);
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-html.dark .bg-violet-50,
-html.dark .bg-violet-100 {
-  background-color: #252044;
+.ss-heading {
+  color: var(--ss-ink);
+  font-size: clamp(1.9rem, 3.7vw, 2.8rem);
+  font-weight: 850;
+  letter-spacing: -0.045em;
+  line-height: 1.14;
 }
 
-html.dark .bg-green-50 {
-  background-color: #123b32;
+.ss-description {
+  color: var(--ss-muted);
+  font-size: 15px;
+  line-height: 1.85;
 }
 
-html.dark .bg-amber-50 {
-  background-color: #47381d;
+/* ==========================================
+   SHARED CARD SYSTEM
+   ========================================== */
+
+.ss-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+
+  border: 1px solid var(--ss-border);
+  border-radius: 18px;
+
+  background: var(--ss-surface);
+  box-shadow: var(--ss-shadow);
+
+  transition:
+    transform 280ms ease,
+    border-color 280ms ease,
+    box-shadow 280ms ease;
 }
 
-html.dark .bg-red-50 {
-  background-color: #442126;
+.ss-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--ss-accent);
+
+  box-shadow:
+    var(--ss-shadow),
+    0 14px 35px var(--ss-card-glow);
 }
 
-html.dark .text-slate-950,
-html.dark .text-slate-900,
-html.dark .text-slate-800,
-html.dark .text-slate-700 {
-  color: #f1f5f9;
+/* ==========================================
+   LIGHT-MODE GLOW CARDS
+   ========================================== */
+
+html:not(.dark) #categories .ss-card,
+html:not(.dark) #how-it-works .ss-card {
+  background:
+    radial-gradient(
+      ellipse 115% 50% at 50% 115%,
+      rgba(195, 119, 244, 0.27),
+      transparent 76%
+    ),
+    linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #ffffff 60%,
+      #fcf7ff 83%,
+      #f5e6ff 100%
+    );
+
+  border-bottom-color: rgba(170, 82, 222, 0.48);
 }
 
-html.dark .text-slate-600,
-html.dark .text-slate-500 {
-  color: #cbd5e1;
+html:not(.dark) #categories .ss-card::after,
+html:not(.dark) #how-it-works .ss-card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+
+  left: 11%;
+  right: 11%;
+  bottom: -16px;
+  height: 47px;
+
+  border-radius: 50%;
+  background: rgba(182, 75, 231, 0.55);
+  filter: blur(24px);
+  opacity: 0.45;
+
+  pointer-events: none;
 }
 
-html.dark .text-slate-400 {
-  color: #94a3b8;
+/* ==========================================
+   DARK-MODE GLOW CARDS — UNCHANGED
+   ========================================== */
+
+html.dark #categories .ss-card,
+html.dark #how-it-works .ss-card {
+  background:
+    radial-gradient(
+      ellipse 120% 65% at 50% 113%,
+      rgba(187, 78, 239, 0.45),
+      transparent 75%
+    ),
+    linear-gradient(
+      180deg,
+      #12101e 0%,
+      #171124 66%,
+      #30143d 100%
+    );
+
+  border-color: rgba(161, 108, 222, 0.20);
+  border-bottom-color: rgba(232, 131, 255, 0.75);
+
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.28),
+    0 13px 26px rgba(133, 40, 192, 0.10);
 }
 
-html.dark .text-violet-700,
-html.dark .text-violet-800,
-html.dark .text-violet-900 {
-  color: #c4b5fd;
+html.dark #categories .ss-card:hover,
+html.dark #how-it-works .ss-card:hover {
+  border-bottom-color: #f1b7ff;
+
+  box-shadow:
+    0 16px 35px rgba(0, 0, 0, 0.32),
+    0 18px 35px rgba(174, 62, 223, 0.28);
 }
 
-html.dark .text-green-700 {
-  color: #86efac;
+/* ==========================================
+   ICON TILES
+   ========================================== */
+
+.ss-icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 62px;
+  height: 62px;
+
+  border: 1px solid var(--ss-border);
+  border-radius: 17px;
+
+  background: var(--ss-surface-alt);
+  color: var(--ss-accent);
 }
 
-html.dark .text-red-700,
-html.dark .text-red-600 {
-  color: #fca5a5;
+html:not(.dark) .ss-icon-tile {
+  background: linear-gradient(
+    135deg,
+    #f2e5ff 0%,
+    #e8d1fa 100%
+  );
+
+  border-color: #e0c6f2;
+  color: #7d2bc1;
 }
 
-html.dark .text-amber-700,
-html.dark .text-amber-800,
-html.dark .text-amber-950 {
-  color: #fde68a;
+html.dark .ss-icon-tile {
+  border-color: rgba(171, 118, 233, 0.25);
+
+  background: linear-gradient(
+    135deg,
+    #28203e,
+    #1b172f
+  );
+
+  color: #d59aff;
 }
 
-html.dark .border-slate-100,
-html.dark .border-slate-200,
-html.dark .border-violet-100,
-html.dark .border-violet-200 {
-  border-color: #334155;
+/* ==========================================
+   PRIMARY BUTTONS
+   ========================================== */
+
+.ss-cta-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  border-radius: 12px;
+  padding: 13px 21px;
+
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 750;
+
+  transition:
+    transform 230ms ease,
+    filter 230ms ease,
+    box-shadow 230ms ease;
 }
 
-html.dark input,
-html.dark select,
-html.dark textarea {
-  background-color: #182337;
-  color: #f1f5f9;
-  border-color: #475569;
+html:not(.dark) .ss-cta-primary {
+  background: linear-gradient(
+    110deg,
+    #8c32d7 0%,
+    #7023ba 100%
+  );
+
+  box-shadow: 0 8px 22px rgba(116, 35, 186, 0.19);
 }
 
-html.dark input::placeholder,
-html.dark textarea::placeholder {
-  color: #94a3b8;
+html.dark .ss-cta-primary {
+  background: linear-gradient(
+    110deg,
+    #8a36dd,
+    #be4ed6
+  );
+
+  box-shadow: 0 8px 25px rgba(158, 55, 210, 0.25);
 }
 
-html.dark option {
-  background: #182337;
-  color: #f1f5f9;
+.ss-cta-primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.10);
 }
+
+.ss-accent-text {
+  color: var(--ss-accent);
+}
+
+.ss-cta-primary:focus-visible,
+.ss-card:focus-visible {
+  outline: 3px solid var(--ss-accent);
+  outline-offset: 4px;
+}
+
+/* ==========================================
+   NAVBAR
+   ========================================== */
+
+.ss-navbar {
+  border-bottom: 1px solid var(--ss-border);
+  background: var(--ss-navbar);
+
+  box-shadow: 0 4px 20px rgba(30, 43, 67, 0.05);
+  backdrop-filter: blur(20px);
+}
+
+html.dark .ss-navbar {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.ss-navbar-link {
+  position: relative;
+  color: var(--ss-muted);
+  transition: color 180ms ease;
+}
+
+.ss-navbar-link:hover,
+.ss-navbar-link[data-active="true"] {
+  color: var(--ss-accent);
+}
+
+.ss-navbar-link[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 10%;
+  width: 80%;
+  height: 2px;
+  border-radius: 20px;
+  background: var(--ss-accent);
+}
+
+.ss-navbar-panel {
+  border: 1px solid var(--ss-border);
+  background: var(--ss-surface);
+  box-shadow: var(--ss-shadow);
+}
+
+/* ==========================================
+   HERO SLIDER
+   ========================================== */
+
+.ss-hero .swiper-button-prev,
+.ss-hero .swiper-button-next {
+  width: 43px;
+  height: 43px;
+
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+
+  background: rgba(12, 10, 24, 0.54);
+  color: #ffffff;
+  backdrop-filter: blur(12px);
+}
+
+.ss-hero .swiper-button-prev::after,
+.ss-hero .swiper-button-next::after {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.ss-hero .swiper-pagination-bullet {
+  width: 8px;
+  height: 8px;
+  background: #ffffff;
+  opacity: 0.50;
+  transition: width 250ms ease;
+}
+
+.ss-hero .swiper-pagination-bullet-active {
+  width: 29px;
+  border-radius: 10px;
+  background: #a78bfa;
+  opacity: 1;
+}
+
+.hero-swiper .swiper-button-prev,
+.hero-swiper .swiper-button-next {
+  color: #ffffff;
+}
+
+.hero-swiper .swiper-button-prev::after,
+.hero-swiper .swiper-button-next::after {
+  font-size: 18px;
+}
+
+.hero-swiper .swiper-pagination-bullet-active {
+  background: #a78bfa;
+}
+
+/* ==========================================
+   HOST SUPPORT PANEL
+   ========================================== */
+
+.ss-host-panel {
+  position: relative;
+  overflow: hidden;
+
+  border: 1px solid #2d2442;
+  border-radius: 25px;
+
+  background:
+    radial-gradient(
+      ellipse at 82% 8%,
+      rgba(113, 42, 178, 0.25),
+      transparent 44%
+    ),
+    radial-gradient(
+      ellipse at 6% 95%,
+      rgba(97, 37, 142, 0.20),
+      transparent 43%
+    ),
+    #100d1e;
+
+  color: #ffffff;
+  box-shadow: 0 20px 45px rgba(14, 8, 29, 0.16);
+}
+
+.ss-host-card {
+  position: relative;
+  overflow: hidden;
+
+  border: 1px solid rgba(164, 142, 206, 0.17);
+  border-bottom-color: rgba(205, 114, 250, 0.36);
+  border-radius: 17px;
+
+  background:
+    radial-gradient(
+      ellipse at 50% 125%,
+      rgba(169, 67, 227, 0.24),
+      transparent 70%
+    ),
+    rgba(255, 255, 255, 0.045);
+
+  color: #ffffff;
+
+  transition:
+    transform 260ms ease,
+    border-color 260ms ease,
+    box-shadow 260ms ease;
+}
+
+.ss-host-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(215, 142, 255, 0.52);
+
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.22),
+    0 12px 27px rgba(175, 66, 227, 0.14);
+}
+
+.ss-host-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 56px;
+  height: 56px;
+
+  border: 1px solid rgba(181, 128, 234, 0.16);
+  border-radius: 14px;
+
+  background: rgba(135, 61, 211, 0.19);
+  color: #d5afff;
+}
+
+/* ==========================================
+   FOOTER
+   ========================================== */
+
+.ss-footer {
+  background:
+    radial-gradient(
+      ellipse at 82% 5%,
+      rgba(103, 52, 167, 0.19),
+      transparent 48%
+    ),
+    linear-gradient(
+      135deg,
+      #0c0b17,
+      #141124 62%,
+      #0c0b17
+    );
+
+  color: #f8f6ff;
+}
+
+.ss-footer a {
+  transition: color 200ms ease;
+}
+
+.ss-footer a:hover {
+  color: #d6adff;
+}
+
+/* ==========================================
+   DARK MODE SHADOWS
+   ========================================== */
 
 html.dark .shadow-sm,
 html.dark .shadow-md,
 html.dark .shadow-xl {
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+  box-shadow: 0 9px 27px rgba(0, 0, 0, 0.25);
+}
+
+/* ==========================================
+   RESPONSIVE
+   ========================================== */
+
+@media (min-width: 768px) {
+  .ss-home-section {
+    padding: 90px 32px;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    background-attachment: scroll;
+  }
+
+  .ss-home-section {
+    padding: 65px 20px;
+  }
+
+  .ss-hero .swiper-button-prev,
+  .ss-hero .swiper-button-next {
+    display: none;
+  }
+}
+
+/* ==========================================
+   ACCESSIBILITY
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .ss-card,
+  .ss-host-card,
+  .ss-cta-primary,
+  .ss-navbar-link {
+    transition: none;
+  }
 }

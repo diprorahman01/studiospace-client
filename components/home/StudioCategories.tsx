@@ -1,101 +1,126 @@
 
 import Link from "next/link";
 import {
+  ArrowUpRight,
   Camera,
   Clapperboard,
   Mic2,
   Music2,
   Palette,
-  ArrowUpRight,
+  Sparkles,
 } from "lucide-react";
 
 const categories = [
   {
     name: "Photo Studios",
     category: "Photo Studio",
-    description: "Professional spaces for photography and content creation.",
+    description: "Photography and visual content creation.",
     icon: Camera,
   },
   {
     name: "Sound Stages",
     category: "Film Stage",
-    description: "Production spaces for filmmaking and video projects.",
+    description: "Film shoots and video production.",
     icon: Clapperboard,
   },
   {
     name: "Podcast Rooms",
     category: "Podcast Lounge",
-    description: "Comfortable recording rooms for conversations.",
+    description: "Conversations and audio recording.",
     icon: Mic2,
   },
   {
     name: "Music Suites",
     category: "Music Suite",
-    description: "Creative recording spaces for musicians and producers.",
+    description: "Music recording and production.",
     icon: Music2,
   },
   {
     name: "Art Workshops",
     category: "Art Workshop",
-    description: "Inspiring workspaces for artists and designers.",
+    description: "Art, design and hands-on creativity.",
     icon: Palette,
   },
 ];
 
 export default function StudioCategories() {
   return (
-    <section className="bg-[#f8f7fd] px-5 py-20 md:py-24">
-      <div className="mx-auto max-w-7xl">
-        {/* Section heading */}
-        <div className="mb-12 text-center">
-          <span className="inline-block rounded-full bg-violet-100 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-violet-700">
+    <section
+      id="categories"
+      aria-labelledby="studio-categories-heading"
+      className="ss-home-section"
+    >
+      <div className="ss-container">
+        <div className="mx-auto mb-11 max-w-3xl text-center">
+          <span className="ss-kicker">
+            <Sparkles size={14} />
             Find Your Creative Space
           </span>
 
-          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-950 md:text-4xl">
+          <h2
+            id="studio-categories-heading"
+            className="ss-heading mt-5"
+          >
             Browse by Studio Categories
           </h2>
 
-          <p className="mx-auto mt-4 max-w-2xl text-slate-600">
-            From photography to music production, discover the perfect
-            studio for your next creative project.
+          <p className="ss-description mx-auto mt-4 max-w-2xl">
+            Whatever you&apos;re creating, find a space
+            that fits your vision and your workflow.
           </p>
         </div>
 
-        {/* Categories */}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {categories.map((category) => {
             const Icon = category.icon;
 
             return (
               <Link
                 key={category.name}
-                href={`/studios?category=${encodeURIComponent(category.category)}`}
-                className="group relative flex flex-col items-center rounded-2xl border border-violet-100 bg-white px-5 py-9 text-center shadow-sm transition-all duration-300 hover:-translate-y-2 hover:border-violet-300 hover:shadow-xl"
+                href={`/studios?category=${encodeURIComponent(
+                  category.category
+                )}`}
+                aria-label={`Explore ${category.name}`}
+                className="ss-card group flex min-h-[248px] flex-col items-center px-5 py-7 text-center focus-visible:outline"
               >
-                <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-violet-100 transition-colors duration-300 group-hover:bg-violet-700">
-                  <Icon
-                    size={36}
-                    strokeWidth={1.8}
-                    className="text-violet-700 transition-colors group-hover:text-white"
-                  />
-                </div>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-12 -top-14 h-36 w-36 rounded-full bg-fuchsia-300/15 blur-3xl"
+                />
 
-                <h3 className="text-lg font-bold text-slate-950 transition-colors group-hover:text-violet-700">
+                <span className="ss-icon-tile relative mb-5 shrink-0 transition-transform duration-300 group-hover:scale-110">
+                  <Icon
+                    size={29}
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                </span>
+
+                <h3
+                  className="relative text-[17px] font-extrabold tracking-tight"
+                  style={{ color: "var(--ss-ink)" }}
+                >
                   {category.name}
                 </h3>
 
-                <p className="mt-3 flex-1 text-sm leading-6 text-slate-500">
+                <p
+                  className="relative mt-3 flex-1 text-[13px] leading-[1.75]"
+                  style={{ color: "var(--ss-muted)" }}
+                >
                   {category.description}
                 </p>
 
-                <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-violet-700">
+                <span
+                  className="relative mt-5 inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-bold transition group-hover:gap-2.5"
+                  style={{
+                    borderColor: "var(--ss-border)",
+                    background: "var(--ss-surface-alt)",
+                    color: "var(--ss-accent)",
+                  }}
+                >
                   Explore Studios
-                  <ArrowUpRight
-                    size={17}
-                    className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1"
-                  />
-                </div>
+                  <ArrowUpRight size={15} />
+                </span>
               </Link>
             );
           })}
