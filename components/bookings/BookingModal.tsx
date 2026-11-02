@@ -68,8 +68,9 @@ function localDate() {
   return `${year}-${month}-${day}`;
 }
 
+// All booking amounts now use dollars.
 function money(amount: number) {
-  return `৳${amount.toLocaleString("en-BD", {
+  return `$${amount.toLocaleString("en-US", {
     maximumFractionDigits: 2,
   })}`;
 }
@@ -386,7 +387,7 @@ export default function BookingModal({ studio }: Props) {
                 </span>
               </div>
 
-              {/* Price summary */}
+              {/* Price summary - all amounts in USD */}
               <div className="rounded-xl border border-slate-200 p-5">
                 <h3 className="mb-4 font-bold text-slate-950">
                   Booking Summary

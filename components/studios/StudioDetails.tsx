@@ -27,12 +27,16 @@ interface StudioDetailsProps {
 
 type Tab = "overview" | "amenities" | "availability" | "reviews";
 
-export default function StudioDetails({ studio }: StudioDetailsProps) {
+export default function StudioDetails({
+  studio,
+}: StudioDetailsProps) {
   const [activeImage, setActiveImage] = useState(0);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   const images =
-    studio.images?.length > 0 ? studio.images : [studio.image];
+    studio.images?.length > 0
+      ? studio.images
+      : [studio.image];
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -42,13 +46,16 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
   ];
 
   function previousImage() {
-    setActiveImage((current) =>
-      (current - 1 + images.length) % images.length
+    setActiveImage(
+      (current) =>
+        (current - 1 + images.length) % images.length
     );
   }
 
   function nextImage() {
-    setActiveImage((current) => (current + 1) % images.length);
+    setActiveImage(
+      (current) => (current + 1) % images.length
+    );
   }
 
   return (
@@ -154,30 +161,48 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
               </h1>
 
               <p className="mt-4 flex items-center gap-2 text-slate-600">
-                <MapPin size={18} className="text-violet-700" />
+                <MapPin
+                  size={18}
+                  className="text-violet-700"
+                />
                 {studio.location}
               </p>
 
               <div className="mt-7 grid gap-4 sm:grid-cols-3">
                 <div className="rounded-xl bg-violet-50 p-4">
-                  <Users className="mb-2 text-violet-700" size={23} />
-                  <p className="text-sm text-slate-500">Capacity</p>
+                  <Users
+                    className="mb-2 text-violet-700"
+                    size={23}
+                  />
+                  <p className="text-sm text-slate-500">
+                    Capacity
+                  </p>
                   <p className="mt-1 font-bold text-slate-900">
                     Up to {studio.maxCapacity} people
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-violet-50 p-4">
-                  <Clock3 className="mb-2 text-violet-700" size={23} />
-                  <p className="text-sm text-slate-500">Booking</p>
+                  <Clock3
+                    className="mb-2 text-violet-700"
+                    size={23}
+                  />
+                  <p className="text-sm text-slate-500">
+                    Booking
+                  </p>
                   <p className="mt-1 font-bold text-slate-900">
                     Hourly Rental
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-violet-50 p-4">
-                  <Camera className="mb-2 text-violet-700" size={23} />
-                  <p className="text-sm text-slate-500">Category</p>
+                  <Camera
+                    className="mb-2 text-violet-700"
+                    size={23}
+                  />
+                  <p className="text-sm text-slate-500">
+                    Category
+                  </p>
                   <p className="mt-1 font-bold text-slate-900">
                     {studio.category}
                   </p>
@@ -227,7 +252,10 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
                             key={amenity}
                             className="flex items-center gap-3 rounded-lg bg-slate-50 p-3"
                           >
-                            <Wifi size={18} className="text-violet-700" />
+                            <Wifi
+                              size={18}
+                              className="text-violet-700"
+                            />
                             <span className="text-sm text-slate-700">
                               {amenity}
                             </span>
@@ -277,31 +305,41 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
           {/* Sidebar */}
           <aside className="space-y-6 lg:sticky lg:top-28 lg:self-start">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-sm text-slate-500">Hourly Rate</p>
+              <p className="text-sm text-slate-500">
+                Hourly Rate
+              </p>
 
               <div className="mt-2">
                 <span className="text-4xl font-extrabold text-violet-700">
                   ${studio.hourlyRate}
                 </span>
-                <span className="text-slate-500"> / hour</span>
+                <span className="text-slate-500">
+                  {" "}/ hour
+                </span>
               </div>
 
               <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-5 text-sm">
-                <span className="text-slate-500">Security Deposit</span>
+                <span className="text-slate-500">
+                  Security Deposit
+                </span>
                 <span className="font-semibold text-slate-900">
                   ${studio.securityDeposit}
                 </span>
               </div>
 
               <div className="mt-4 flex items-center justify-between text-sm">
-                <span className="text-slate-500">Maximum Capacity</span>
+                <span className="text-slate-500">
+                  Maximum Capacity
+                </span>
                 <span className="font-semibold text-slate-900">
                   {studio.maxCapacity} people
                 </span>
               </div>
 
-              {/* New booking modal */}
-              <BookingModal studio={studio} />
+              {/* Added spacing above booking button */}
+              <div className="mt-6">
+                <BookingModal studio={studio} />
+              </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -311,7 +349,8 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
 
               <div className="mt-5 flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 font-bold text-violet-700">
-                  {studio.ownerName?.charAt(0).toUpperCase() || "S"}
+                  {studio.ownerName?.charAt(0).toUpperCase() ||
+                    "S"}
                 </div>
 
                 <div>
@@ -326,7 +365,10 @@ export default function StudioDetails({ studio }: StudioDetailsProps) {
               </div>
 
               <div className="mt-5 flex items-center gap-2 text-sm text-slate-600">
-                <BadgeCheck size={18} className="text-violet-700" />
+                <BadgeCheck
+                  size={18}
+                  className="text-violet-700"
+                />
                 Host information provided
               </div>
             </div>
