@@ -1,7 +1,13 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -9,6 +15,7 @@ import {
   Building2,
   CheckCircle2,
   ExternalLink,
+  Layers,
   LoaderCircle,
   MapPin,
   Navigation,
@@ -17,6 +24,22 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import type { Studio } from "@/types/studio";
+
+const MultiStudioMap = dynamic(
+  () => import("@/components/studios/MultiStudioMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[450px] items-center justify-center gap-3 text-violet-700">
+        <LoaderCircle
+          size={22}
+          className="animate-spin"
+        />
+        Loading interactive map...
+      </div>
+    ),
+  }
+);
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -28,18 +51,12 @@ type StudiosResponse = {
   data?: Studio[];
 };
 
-type Coordinates = {
-  latitude: number;
-  longitude: number;
-};
+type MapMode = "all" | "selected";
 
 function money(value: number) {
-  return `$${Number(value || 0).toLocaleString(
-    "en-US",
-    {
-      maximumFractionDigits: 2,
-    }
-  )}`;
+  return `$${Number(value || 0).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function isBookable(studio: Studio) {
@@ -50,9 +67,7 @@ function isBookable(studio: Studio) {
   );
 }
 
-function getCoordinates(
-  studio: Studio
-): Coordinates | null {
+function getCoordinates(studio: Studio) {
   const latitude = studio.coordinates?.latitude;
   const longitude = studio.coordinates?.longitude;
 
@@ -69,49 +84,40 @@ function getCoordinates(
     return null;
   }
 
-  return {
-    latitude,
-    longitude,
-  };
+  return { latitude, longitude };
 }
 
-function buildMapLinks(studio: Studio) {
+function getMapLinks(studio: Studio) {
   const coordinates = getCoordinates(studio);
 
   if (coordinates) {
     const point =
       `${coordinates.latitude},${coordinates.longitude}`;
 
+    const query = encodeURIComponent(point);
+
     return {
       exact: true,
       embed:
-        `https://maps.google.com/maps?q=${encodeURIComponent(
-          point
-        )}&z=16&output=embed`,
+        `https://maps.google.com/maps?q=${query}&z=16&output=embed`,
       open:
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          point
-        )}`,
+        `https://www.google.com/maps/search/?api=1&query=${query}`,
       directions:
-        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-          point
-        )}`,
+        `https://www.google.com/maps/dir/?api=1&destination=${query}`,
     };
   }
 
-  const area = studio.location?.trim() || "";
+  const area = encodeURIComponent(
+    studio.location?.trim() || ""
+  );
 
   return {
     exact: false,
     embed: area
-      ? `https://maps.google.com/maps?q=${encodeURIComponent(
-          area
-        )}&output=embed`
+      ? `https://maps.google.com/maps?q=${area}&output=embed`
       : "",
     open: area
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          area
-        )}`
+      ? `https://www.google.com/maps/search/?api=1&query=${area}`
       : "",
     directions: "",
   };
@@ -124,32 +130,26 @@ export default function StudioLocationsPage() {
 
   const [search, setSearch] = useState("");
   const [location, setLocation] = useState("all");
-  const [availability, setAvailability] =
-    useState("all");
-
+  const [availability, setAvailability] = useState("all");
   const [exactOnly, setExactOnly] = useState(false);
 
   const [selectedId, setSelectedId] =
     useState<string | null>(null);
 
+  const [mapMode, setMapMode] = useState<MapMode>("all");
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // ==========================================
-  // FETCH STUDIO DATA
-  // ==========================================
-
+  // Fetch studio listings.
   useEffect(() => {
     const controller = new AbortController();
 
-    const request = fetch(`${API_URL}/api/studios`, {
+    fetch(`${API_URL}/api/studios`, {
       cache: "no-store",
+      signal: controller.signal,
       headers: {
         Accept: "application/json",
       },
-      signal: controller.signal,
-    });
-
-    request
+    })
       .then(async (response) => {
         const result: StudiosResponse =
           await response.json();
@@ -180,7 +180,7 @@ export default function StudioLocationsPage() {
         setError(
           err instanceof Error
             ? err.message
-            : "Unable to load studios."
+            : "Unable to load studio locations."
         );
 
         setLoading(false);
@@ -189,29 +189,17 @@ export default function StudioLocationsPage() {
     return () => controller.abort();
   }, [refreshKey]);
 
-  // ==========================================
-  // FILTER OPTIONS
-  // ==========================================
-
   const locations = useMemo(() => {
-    const values = studios
-      .map((studio) => studio.location?.trim())
-      .filter(
-        (value): value is string => Boolean(value)
-      );
-
-    return [...new Set(values)].sort((a, b) =>
-      a.localeCompare(b)
-    );
+    return [
+      ...new Set(
+        studios
+          .map((studio) => studio.location?.trim())
+          .filter(
+            (value): value is string => Boolean(value)
+          )
+      ),
+    ].sort((a, b) => a.localeCompare(b));
   }, [studios]);
-
-  const exactLocationCount = useMemo(
-    () =>
-      studios.filter(
-        (studio) => getCoordinates(studio) !== null
-      ).length,
-    [studios]
-  );
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -246,32 +234,48 @@ export default function StudioLocationsPage() {
         matchesCoordinates
       );
     });
-  }, [
-    studios,
-    search,
-    location,
-    availability,
-    exactOnly,
-  ]);
+  }, [studios, search, location, availability, exactOnly]);
 
-  // ==========================================
-  // SELECTED STUDIO
-  // ==========================================
+  const mappedStudios = useMemo(
+    () =>
+      filtered.filter(
+        (studio) => getCoordinates(studio) !== null
+      ),
+    [filtered]
+  );
 
   const selectedStudio =
-    filtered.find(
-      (studio) => studio._id === selectedId
-    ) ??
+    filtered.find((studio) => studio._id === selectedId) ??
     filtered[0] ??
     null;
 
-  const mapLinks = selectedStudio
-    ? buildMapLinks(selectedStudio)
-    : null;
-
-  const coordinates = selectedStudio
+  const selectedCoordinates = selectedStudio
     ? getCoordinates(selectedStudio)
     : null;
+
+  const mapLinks = selectedStudio
+    ? getMapLinks(selectedStudio)
+    : null;
+
+  const exactCount = studios.filter(
+    (studio) => getCoordinates(studio) !== null
+  ).length;
+
+  // A stable callback prevents the Leaflet map from
+  // being rebuilt every time the page renders.
+  const handlePinSelect = useCallback((id: string) => {
+    setSelectedId(id);
+  }, []);
+
+  function selectStudio(studio: Studio) {
+    setSelectedId(studio._id);
+
+    // Studios without coordinates use the original
+    // area-search view instead of a guessed pin.
+    if (getCoordinates(studio) === null) {
+      setMapMode("selected");
+    }
+  }
 
   function refresh() {
     setLoading(true);
@@ -284,11 +288,17 @@ export default function StudioLocationsPage() {
     setAvailability("all");
     setExactOnly(false);
     setSelectedId(null);
+    setMapMode("all");
   }
 
-  // ==========================================
-  // PAGE
-  // ==========================================
+  const inputStyle = {
+    background: "var(--ss-surface-alt)",
+    borderColor: "var(--ss-border)",
+    color: "var(--ss-ink)",
+  };
+
+  const showMultiMap =
+    mapMode === "all" && mappedStudios.length > 0;
 
   return (
     <main className="min-h-screen">
@@ -307,15 +317,15 @@ export default function StudioLocationsPage() {
           </h1>
 
           <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-violet-100 sm:text-base">
-            Browse creative studios by location, explore
-            their surroundings, and find directions to
-            studios with published map coordinates.
+            Explore creative studios on an interactive map,
+            compare their locations, and find the right
+            studio for your next booking.
           </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-5 py-10 md:py-14">
-        {/* Filter panel */}
+        {/* Search and filters */}
         <div
           className="mb-7 rounded-2xl border p-5"
           style={{
@@ -324,7 +334,6 @@ export default function StudioLocationsPage() {
           }}
         >
           <div className="grid gap-4 md:grid-cols-3">
-            {/* Search */}
             <div>
               <label
                 htmlFor="location-search"
@@ -338,9 +347,7 @@ export default function StudioLocationsPage() {
                 <Search
                   size={17}
                   className="absolute left-4 top-1/2 -translate-y-1/2"
-                  style={{
-                    color: "var(--ss-muted)",
-                  }}
+                  style={{ color: "var(--ss-muted)" }}
                 />
 
                 <input
@@ -350,25 +357,18 @@ export default function StudioLocationsPage() {
                   onChange={(event) =>
                     setSearch(event.target.value)
                   }
-                  placeholder="Studio, address, city..."
+                  placeholder="Studio, address or city..."
                   className="w-full rounded-xl border py-3 pl-11 pr-4 text-sm outline-none focus:border-violet-500"
-                  style={{
-                    background: "var(--ss-surface-alt)",
-                    borderColor: "var(--ss-border)",
-                    color: "var(--ss-ink)",
-                  }}
+                  style={inputStyle}
                 />
               </div>
             </div>
 
-            {/* Area */}
             <div>
               <label
                 htmlFor="location-filter"
                 className="mb-2 block text-sm font-semibold"
-                style={{
-                  color: "var(--ss-ink)",
-                }}
+                style={{ color: "var(--ss-ink)" }}
               >
                 Location
               </label>
@@ -379,36 +379,23 @@ export default function StudioLocationsPage() {
                 onChange={(event) =>
                   setLocation(event.target.value)
                 }
-                className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-violet-500"
-                style={{
-                  background: "var(--ss-surface-alt)",
-                  borderColor: "var(--ss-border)",
-                  color: "var(--ss-ink)",
-                }}
+                className="w-full rounded-xl border px-4 py-3 text-sm"
+                style={inputStyle}
               >
-                <option value="all">
-                  All Locations
-                </option>
-
-                {locations.map((item) => (
-                  <option
-                    key={item}
-                    value={item}
-                  >
-                    {item}
+                <option value="all">All Locations</option>
+                {locations.map((area) => (
+                  <option key={area} value={area}>
+                    {area}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Availability */}
             <div>
               <label
                 htmlFor="availability-filter"
                 className="mb-2 flex items-center gap-2 text-sm font-semibold"
-                style={{
-                  color: "var(--ss-ink)",
-                }}
+                style={{ color: "var(--ss-ink)" }}
               >
                 <SlidersHorizontal size={16} />
                 Booking Status
@@ -420,21 +407,11 @@ export default function StudioLocationsPage() {
                 onChange={(event) =>
                   setAvailability(event.target.value)
                 }
-                className="w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-violet-500"
-                style={{
-                  background: "var(--ss-surface-alt)",
-                  borderColor: "var(--ss-border)",
-                  color: "var(--ss-ink)",
-                }}
+                className="w-full rounded-xl border px-4 py-3 text-sm"
+                style={inputStyle}
               >
-                <option value="all">
-                  All Studios
-                </option>
-
-                <option value="bookable">
-                  Bookable Only
-                </option>
-
+                <option value="all">All Studios</option>
+                <option value="bookable">Bookable Only</option>
                 <option value="unavailable">
                   Unavailable Only
                 </option>
@@ -442,15 +419,12 @@ export default function StudioLocationsPage() {
             </div>
           </div>
 
-          {/* Additional filters */}
           <div
             className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t pt-5"
-            style={{
-              borderColor: "var(--ss-border)",
-            }}
+            style={{ borderColor: "var(--ss-border)" }}
           >
             <label
-              className="inline-flex cursor-pointer items-center gap-3 text-sm font-semibold"
+              className="flex cursor-pointer items-center gap-2 text-sm font-semibold"
               style={{ color: "var(--ss-ink)" }}
             >
               <input
@@ -461,12 +435,6 @@ export default function StudioLocationsPage() {
                 }
                 className="h-4 w-4 accent-violet-700"
               />
-
-              <MapPin
-                size={17}
-                className="text-violet-600 dark:text-violet-300"
-              />
-
               Exact Locations Only
             </label>
 
@@ -475,15 +443,13 @@ export default function StudioLocationsPage() {
                 className="text-xs"
                 style={{ color: "var(--ss-muted)" }}
               >
-                {exactLocationCount} studio
-                {exactLocationCount === 1 ? "" : "s"}{" "}
-                with coordinates
+                {exactCount} studios with coordinates
               </span>
 
               <button
                 type="button"
                 onClick={clearFilters}
-                className="text-xs font-semibold text-violet-700 hover:underline dark:text-violet-300"
+                className="text-xs font-semibold text-violet-700 dark:text-violet-300"
               >
                 Clear Filters
               </button>
@@ -492,13 +458,11 @@ export default function StudioLocationsPage() {
                 type="button"
                 onClick={refresh}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-500/10 disabled:opacity-50 dark:text-violet-300"
+                className="inline-flex items-center gap-2 text-xs font-semibold text-violet-700 disabled:opacity-50 dark:text-violet-300"
               >
                 <RefreshCw
                   size={15}
-                  className={
-                    loading ? "animate-spin" : ""
-                  }
+                  className={loading ? "animate-spin" : ""}
                 />
                 Refresh
               </button>
@@ -509,16 +473,13 @@ export default function StudioLocationsPage() {
             className="mt-4 text-xs"
             style={{ color: "var(--ss-muted)" }}
           >
-            Showing {filtered.length} matching{" "}
-            {filtered.length === 1
-              ? "studio"
-              : "studios"}
+            {filtered.length} matching studios ·{" "}
+            {mappedStudios.length} map pins
           </p>
         </div>
 
-        {/* Loading */}
         {loading ? (
-          <div className="flex min-h-72 items-center justify-center gap-3 text-violet-700 dark:text-violet-300">
+          <div className="flex min-h-72 items-center justify-center gap-3 text-violet-700">
             <LoaderCircle
               size={24}
               className="animate-spin"
@@ -526,13 +487,15 @@ export default function StudioLocationsPage() {
             Loading studio locations...
           </div>
         ) : error ? (
-          /* Error */
           <div className="ss-card p-10 text-center">
             <h2 className="text-lg font-bold text-red-600">
               Unable to load studios
             </h2>
 
-            <p className="mt-3 text-sm text-slate-500">
+            <p
+              className="mt-3 text-sm"
+              style={{ color: "var(--ss-muted)" }}
+            >
               {error}
             </p>
 
@@ -545,10 +508,9 @@ export default function StudioLocationsPage() {
             </button>
           </div>
         ) : (
-          /* Explorer layout */
-          <div className="grid items-start gap-6 lg:grid-cols-[390px_minmax(0,1fr)]">
-            {/* Studio listings */}
-            <div
+          <div className="grid items-start gap-6 lg:grid-cols-[370px_minmax(0,1fr)]">
+            {/* Studio list */}
+            <section
               className="overflow-hidden rounded-2xl border"
               style={{
                 background: "var(--ss-surface)",
@@ -557,9 +519,7 @@ export default function StudioLocationsPage() {
             >
               <div
                 className="border-b p-5"
-                style={{
-                  borderColor: "var(--ss-border)",
-                }}
+                style={{ borderColor: "var(--ss-border)" }}
               >
                 <h2
                   className="text-lg font-extrabold"
@@ -570,31 +530,20 @@ export default function StudioLocationsPage() {
 
                 <p
                   className="mt-1 text-xs"
-                  style={{
-                    color: "var(--ss-muted)",
-                  }}
+                  style={{ color: "var(--ss-muted)" }}
                 >
-                  Select a studio to view its map.
+                  Select a studio to highlight it on the map.
                 </p>
               </div>
 
-              <div className="max-h-[650px] space-y-2 overflow-y-auto p-3">
+              <div className="max-h-[660px] space-y-2 overflow-y-auto p-3">
                 {filtered.length === 0 ? (
-                  <div className="px-4 py-12 text-center">
-                    <Building2
-                      size={32}
-                      className="mx-auto text-violet-500"
-                    />
-
-                    <p
-                      className="mt-3 text-sm"
-                      style={{
-                        color: "var(--ss-muted)",
-                      }}
-                    >
-                      No studios match your filters.
-                    </p>
-                  </div>
+                  <p
+                    className="py-12 text-center text-sm"
+                    style={{ color: "var(--ss-muted)" }}
+                  >
+                    No matching studios.
+                  </p>
                 ) : (
                   filtered.map((studio) => {
                     const selected =
@@ -607,9 +556,7 @@ export default function StudioLocationsPage() {
                       <button
                         key={studio._id}
                         type="button"
-                        onClick={() =>
-                          setSelectedId(studio._id)
-                        }
+                        onClick={() => selectStudio(studio)}
                         aria-pressed={selected}
                         className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
                           selected
@@ -639,23 +586,16 @@ export default function StudioLocationsPage() {
                         <span className="min-w-0 flex-1">
                           <span
                             className="block truncate text-sm font-bold"
-                            style={{
-                              color: "var(--ss-ink)",
-                            }}
+                            style={{ color: "var(--ss-ink)" }}
                           >
                             {studio.title}
                           </span>
 
                           <span
                             className="mt-1 flex items-start gap-1.5 text-xs"
-                            style={{
-                              color: "var(--ss-muted)",
-                            }}
+                            style={{ color: "var(--ss-muted)" }}
                           >
-                            <MapPin
-                              size={13}
-                              className="shrink-0"
-                            />
+                            <MapPin size={13} />
                             {studio.location}
                           </span>
 
@@ -676,16 +616,16 @@ export default function StudioLocationsPage() {
                           </span>
 
                           <span
-                            className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-semibold ${
-                              exact
-                                ? "text-violet-700 dark:text-violet-300"
-                                : "text-slate-500 dark:text-violet-200"
-                            }`}
+                            className="mt-1 inline-flex items-center gap-1.5 text-[11px]"
+                            style={{ color: "var(--ss-muted)" }}
                           >
                             {exact ? (
                               <>
-                                <CheckCircle2 size={13} />
-                                Coordinates provided
+                                <CheckCircle2
+                                  size={13}
+                                  className="text-violet-600"
+                                />
+                                Map coordinates provided
                               </>
                             ) : (
                               <>
@@ -700,164 +640,203 @@ export default function StudioLocationsPage() {
                   })
                 )}
               </div>
-            </div>
+            </section>
 
-            {/* Map panel */}
-            <div
+            {/* Map and selected studio */}
+            <section
               className="overflow-hidden rounded-2xl border"
               style={{
                 background: "var(--ss-surface)",
                 borderColor: "var(--ss-border)",
               }}
             >
-              {selectedStudio && mapLinks?.embed ? (
-                <>
-                  <div className="flex flex-wrap items-start justify-between gap-4 p-5">
-                    <div className="min-w-0">
+              {/* Map mode controls */}
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 border-b p-4"
+                style={{ borderColor: "var(--ss-border)" }}
+              >
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMapMode("all")}
+                    disabled={mappedStudios.length === 0}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold disabled:opacity-40 ${
+                      mapMode === "all"
+                        ? "bg-violet-700 text-white"
+                        : "bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                    }`}
+                  >
+                    <Layers size={15} />
+                    All Studio Pins
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMapMode("selected")}
+                    disabled={!selectedStudio}
+                    className={`rounded-xl px-4 py-2.5 text-xs font-bold disabled:opacity-40 ${
+                      mapMode === "selected"
+                        ? "bg-violet-700 text-white"
+                        : "bg-violet-500/10 text-violet-700 dark:text-violet-200"
+                    }`}
+                  >
+                    Selected Studio
+                  </button>
+                </div>
+
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--ss-muted)" }}
+                >
+                  {mappedStudios.length} exact pins
+                </span>
+              </div>
+
+              {showMultiMap ? (
+                <div className="p-3">
+                  <MultiStudioMap
+                    studios={mappedStudios}
+                    selectedId={selectedStudio?._id ?? null}
+                    onSelect={handlePinSelect}
+                  />
+
+                  <p
+                    className="mt-3 px-2 text-xs leading-6"
+                    style={{ color: "var(--ss-muted)" }}
+                  >
+                    Click a purple marker to select a studio.
+                    Scroll-wheel zoom is off to avoid
+                    accidental zooming while scrolling.
+                    Use the map controls to zoom.
+                  </p>
+                </div>
+              ) : selectedStudio && mapLinks?.embed ? (
+                <iframe
+                  key={`${selectedStudio._id}-${mapLinks.embed}`}
+                  title={
+                    mapLinks.exact
+                      ? `Location of ${selectedStudio.title}`
+                      : `Area map for ${selectedStudio.location}`
+                  }
+                  src={mapLinks.embed}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                  className="h-[400px] w-full border-0 sm:h-[510px] lg:h-[590px]"
+                />
+              ) : (
+                <div className="flex min-h-96 flex-col items-center justify-center gap-3 p-8 text-center">
+                  <MapPin
+                    size={38}
+                    className="text-violet-500"
+                  />
+                  <p
+                    className="text-sm font-semibold"
+                    style={{ color: "var(--ss-ink)" }}
+                  >
+                    No map locations available
+                  </p>
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--ss-muted)" }}
+                  >
+                    Hosts can add coordinates when
+                    editing their studios.
+                  </p>
+                </div>
+              )}
+
+              {/* Studio details below the map */}
+              {selectedStudio && (
+                <div
+                  className="border-t p-5"
+                  style={{ borderColor: "var(--ss-border)" }}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
                       <h2
                         className="text-lg font-extrabold"
-                        style={{
-                          color: "var(--ss-ink)",
-                        }}
+                        style={{ color: "var(--ss-ink)" }}
                       >
                         {selectedStudio.title}
                       </h2>
 
                       <p
                         className="mt-2 flex items-start gap-2 text-sm"
-                        style={{
-                          color: "var(--ss-muted)",
-                        }}
+                        style={{ color: "var(--ss-muted)" }}
                       >
-                        <MapPin
-                          size={16}
-                          className="mt-0.5 shrink-0"
-                        />
+                        <MapPin size={16} />
                         {selectedStudio.location}
                       </p>
 
                       {selectedStudio.fullAddress && (
                         <p
-                          className="mt-2 text-sm leading-6"
-                          style={{
-                            color: "var(--ss-ink)",
-                          }}
+                          className="mt-2 text-sm"
+                          style={{ color: "var(--ss-ink)" }}
                         >
                           <strong>Address:</strong>{" "}
                           {selectedStudio.fullAddress}
                         </p>
                       )}
 
-                      {coordinates && (
+                      {selectedCoordinates && (
                         <p
                           className="mt-2 text-xs"
-                          style={{
-                            color: "var(--ss-muted)",
-                          }}
+                          style={{ color: "var(--ss-muted)" }}
                         >
                           Coordinates:{" "}
-                          {coordinates.latitude.toFixed(6)},{" "}
-                          {coordinates.longitude.toFixed(6)}
+                          {selectedCoordinates.latitude.toFixed(6)},{" "}
+                          {selectedCoordinates.longitude.toFixed(6)}
                         </p>
                       )}
                     </div>
 
                     <Link
                       href={`/studios/${selectedStudio._id}`}
-                      className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-violet-800"
+                      className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-bold text-white"
                     >
                       View Studio
                       <ArrowRight size={15} />
                     </Link>
                   </div>
 
-                  {/* Coordinates take priority over area */}
-                  <iframe
-                    key={`${selectedStudio._id}-${mapLinks.embed}`}
-                    title={
-                      mapLinks.exact
-                        ? `Map for ${selectedStudio.title}`
-                        : `Area map for ${selectedStudio.location}`
-                    }
-                    src={mapLinks.embed}
-                    className="h-[380px] w-full border-0 sm:h-[470px] lg:h-[550px]"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    allowFullScreen
-                  />
-
-                  {/* Map actions */}
-                  <div
-                    className="border-t px-5 py-4"
-                    style={{
-                      borderColor: "var(--ss-border)",
-                    }}
-                  >
-                    <div className="flex flex-wrap gap-3">
+                  {mapLinks?.open && (
+                    <div className="mt-5 flex flex-wrap gap-3">
                       <a
                         href={mapLinks.open}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-xl border border-violet-300/40 px-4 py-2.5 text-xs font-semibold text-violet-700 hover:bg-violet-500/10 dark:text-violet-300"
+                        className="inline-flex items-center gap-2 rounded-xl border border-violet-300/40 px-4 py-2.5 text-xs font-semibold text-violet-700 dark:text-violet-300"
                       >
                         Open in Google Maps
                         <ExternalLink size={15} />
                       </a>
 
-                      {mapLinks.exact &&
-                        mapLinks.directions && (
-                          <a
-                            href={mapLinks.directions}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-violet-800"
-                          >
-                            <Navigation size={15} />
-                            Get Directions
-                          </a>
-                        )}
+                      {mapLinks.directions && (
+                        <a
+                          href={mapLinks.directions}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl bg-violet-700 px-4 py-2.5 text-xs font-semibold text-white"
+                        >
+                          <Navigation size={15} />
+                          Get Directions
+                        </a>
+                      )}
                     </div>
-
-                    <p
-                      className="mt-4 text-xs leading-6"
-                      style={{
-                        color: "var(--ss-muted)",
-                      }}
-                    >
-                      {mapLinks.exact
-                        ? "This map uses coordinates submitted by the studio host. They have not been independently verified. Confirm the entrance and directions before travelling."
-                        : "This map searches the general listed area because the host has not provided exact coordinates. It does not show a verified studio location."}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <div className="flex min-h-[500px] flex-col items-center justify-center gap-3 p-8 text-center">
-                  <MapPin
-                    size={42}
-                    className="text-violet-500"
-                  />
-
-                  <h2
-                    className="text-lg font-bold"
-                    style={{
-                      color: "var(--ss-ink)",
-                    }}
-                  >
-                    Select a Studio
-                  </h2>
+                  )}
 
                   <p
-                    className="text-sm"
-                    style={{
-                      color: "var(--ss-muted)",
-                    }}
+                    className="mt-4 text-xs leading-6"
+                    style={{ color: "var(--ss-muted)" }}
                   >
-                    Choose a studio from the list to
-                    view its location.
+                    {selectedCoordinates
+                      ? "Map pins use coordinates submitted by studio hosts. These locations have not been independently verified. Confirm directions before travelling."
+                      : "This studio has no saved coordinates, so its map shows a general area search rather than an exact pin."}
                   </p>
                 </div>
               )}
-            </div>
+            </section>
           </div>
         )}
       </section>
