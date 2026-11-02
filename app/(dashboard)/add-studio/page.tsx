@@ -15,6 +15,10 @@ import {
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import StudioImageUploader from "@/components/studios/StudioImageUploader";
+import StudioLocationFields, {
+  parseStudioCoordinates,
+  type StudioLocationValue,
+} from "@/components/studios/StudioLocationFields";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -50,8 +54,11 @@ type StudioResponse = {
   data?: { _id: string };
 };
 
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600";
+
 function validImageUrl(value: string) {
-  if (value.length > 2048 || !value.trim()) return false;
+  if (!value.trim() || value.length > 2048) return false;
 
   if (
     value.startsWith("/") &&
@@ -69,9 +76,6 @@ function validImageUrl(value: string) {
     return false;
   }
 }
-
-const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600";
 
 export default function AddStudioPage() {
   const router = useRouter();
@@ -91,22 +95,32 @@ export default function AddStudioPage() {
   const [securityDeposit, setSecurityDeposit] =
     useState("0");
   const [maxCapacity, setMaxCapacity] = useState("1");
+
+  const [exactLocation, setExactLocation] =
+    useState<StudioLocationValue>({
+      fullAddress: "",
+      latitude: "",
+      longitude: "",
+    });
+
   const [image, setImage] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [newImage, setNewImage] = useState("");
+
   const [amenities, setAmenities] = useState<string[]>([]);
   const [customAmenity, setCustomAmenity] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
 
-  function addImage(value: string) {
-    const trimmed = value.trim();
+  function addImage(url: string) {
+    const value = url.trim();
 
-    if (!validImageUrl(trimmed)) {
+    if (!validImageUrl(value)) {
       toast.error("Enter a valid image URL.");
       return;
     }
 
-    if (trimmed === image || images.includes(trimmed)) {
+    if (value === image || images.includes(value)) {
       toast.error("This image has already been added.");
       return;
     }
@@ -116,7 +130,7 @@ export default function AddStudioPage() {
       return;
     }
 
-    setImages((current) => [...current, trimmed]);
+    setImages((current) => [...current, value]);
     setNewImage("");
   }
 
@@ -156,13 +170,15 @@ export default function AddStudioPage() {
     setCustomAmenity("");
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     if (submitting || !user) return;
 
     const name = title.trim();
-    const address = location.trim();
+    const area = location.trim();
     const description = overview.trim();
     const mainImage = image.trim();
 
@@ -180,7 +196,7 @@ export default function AddStudioPage() {
       return;
     }
 
-    if (address.length < 3 || address.length > 150) {
+    if (area.length < 3 || area.length > 150) {
       toast.error("Location must be 3–150 characters.");
       return;
     }
@@ -231,6 +247,27 @@ export default function AddStudioPage() {
       return;
     }
 
+    if (exactLocation.fullAddress.trim().length > 300) {
+      toast.error("Full address must be 300 characters or fewer.");
+      return;
+    }
+
+    let coordinates: {
+      latitude: number;
+      longitude: number;
+    } | null;
+
+    try {
+      coordinates = parseStudioCoordinates(exactLocation);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Invalid studio coordinates."
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -244,7 +281,9 @@ export default function AddStudioPage() {
         body: JSON.stringify({
           title: name,
           category,
-          location: address,
+          location: area,
+          fullAddress: exactLocation.fullAddress.trim(),
+          coordinates,
           overview: description,
           hourlyRate: rate,
           securityDeposit: deposit,
@@ -264,7 +303,9 @@ export default function AddStudioPage() {
       }
 
       if (!response.ok || !result.success) {
-        toast.error(result.message || "Could not create studio.");
+        toast.error(
+          result.message || "Could not create studio."
+        );
         return;
       }
 
@@ -317,21 +358,24 @@ export default function AddStudioPage() {
           <p className="text-xs font-bold uppercase tracking-wider text-violet-700">
             HOST YOUR SPACE
           </p>
+
           <h1 className="mt-2 text-3xl font-extrabold text-slate-950">
             Add a New Studio
           </h1>
+
           <p className="mt-2 text-sm text-slate-500">
             Publish your workspace for other creators to discover.
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-7"
-        >
+        <form onSubmit={handleSubmit} className="space-y-7">
+          {/* Studio information */}
           <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-950">
-              <Building2 size={22} className="text-violet-700" />
+              <Building2
+                size={22}
+                className="text-violet-700"
+              />
               Studio Information
             </h2>
 
@@ -340,7 +384,9 @@ export default function AddStudioPage() {
                 Studio Name *
                 <input
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(event) =>
+                    setTitle(event.target.value)
+                  }
                   minLength={5}
                   maxLength={120}
                   required
@@ -353,7 +399,9 @@ export default function AddStudioPage() {
                 Category *
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(event) =>
+                    setCategory(event.target.value)
+                  }
                   required
                   className={`mt-2 ${inputClass}`}
                 >
@@ -370,7 +418,9 @@ export default function AddStudioPage() {
                 Location *
                 <input
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
+                  onChange={(event) =>
+                    setLocation(event.target.value)
+                  }
                   required
                   maxLength={150}
                   placeholder="e.g. Gulshan, Dhaka"
@@ -379,29 +429,31 @@ export default function AddStudioPage() {
               </label>
 
               <label className="block text-sm font-semibold text-slate-700">
-                Hourly Rate (BDT) *
+                Hourly Rate (USD) *
                 <input
                   type="number"
                   min="1"
                   max="100000"
                   step="0.01"
                   value={hourlyRate}
-                  onChange={(e) => setHourlyRate(e.target.value)}
+                  onChange={(event) =>
+                    setHourlyRate(event.target.value)
+                  }
                   required
                   className={`mt-2 ${inputClass}`}
                 />
               </label>
 
               <label className="block text-sm font-semibold text-slate-700">
-                Security Deposit (BDT) *
+                Security Deposit (USD) *
                 <input
                   type="number"
                   min="0"
                   max="1000000"
                   step="0.01"
                   value={securityDeposit}
-                  onChange={(e) =>
-                    setSecurityDeposit(e.target.value)
+                  onChange={(event) =>
+                    setSecurityDeposit(event.target.value)
                   }
                   required
                   className={`mt-2 ${inputClass}`}
@@ -416,7 +468,9 @@ export default function AddStudioPage() {
                   max="500"
                   step="1"
                   value={maxCapacity}
-                  onChange={(e) => setMaxCapacity(e.target.value)}
+                  onChange={(event) =>
+                    setMaxCapacity(event.target.value)
+                  }
                   required
                   className={`mt-2 ${inputClass}`}
                 />
@@ -448,7 +502,9 @@ export default function AddStudioPage() {
                   maxLength={3000}
                   required
                   value={overview}
-                  onChange={(e) => setOverview(e.target.value)}
+                  onChange={(event) =>
+                    setOverview(event.target.value)
+                  }
                   placeholder="Describe your studio, equipment, facilities, and what creators can do here."
                   className={`mt-2 ${inputClass}`}
                 />
@@ -456,6 +512,14 @@ export default function AddStudioPage() {
             </div>
           </section>
 
+          {/* New exact location fields */}
+          <StudioLocationFields
+            value={exactLocation}
+            onChange={setExactLocation}
+            disabled={submitting}
+          />
+
+          {/* Studio images */}
           <section className="space-y-5 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="text-xl font-bold text-slate-950">
               Studio Images
@@ -465,7 +529,9 @@ export default function AddStudioPage() {
               Main Image URL *
               <input
                 value={image}
-                onChange={(e) => setImage(e.target.value)}
+                onChange={(event) =>
+                  setImage(event.target.value)
+                }
                 required
                 placeholder="https://example.com/studio.jpg"
                 className={`mt-2 ${inputClass}`}
@@ -496,10 +562,13 @@ export default function AddStudioPage() {
                 <input
                   type="url"
                   value={newImage}
-                  onChange={(e) => setNewImage(e.target.value)}
+                  onChange={(event) =>
+                    setNewImage(event.target.value)
+                  }
                   placeholder="Additional image URL"
                   className={inputClass}
                 />
+
                 <button
                   type="button"
                   onClick={() => addImage(newImage)}
@@ -513,7 +582,9 @@ export default function AddStudioPage() {
               <div className="mt-3">
                 <StudioImageUploader
                   label="Upload Additional Image"
-                  disabled={submitting || images.length >= 9}
+                  disabled={
+                    submitting || images.length >= 9
+                  }
                   onUploaded={addImage}
                 />
               </div>
@@ -530,6 +601,7 @@ export default function AddStudioPage() {
                       alt="Additional studio"
                       className="h-28 w-full object-cover"
                     />
+
                     <button
                       type="button"
                       aria-label="Remove image"
@@ -548,6 +620,7 @@ export default function AddStudioPage() {
             </div>
           </section>
 
+          {/* Amenities */}
           <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="mb-5 text-xl font-bold text-slate-950">
               Amenities
@@ -573,10 +646,13 @@ export default function AddStudioPage() {
             <div className="mt-5 flex gap-3">
               <input
                 value={customAmenity}
-                onChange={(e) => setCustomAmenity(e.target.value)}
+                onChange={(event) =>
+                  setCustomAmenity(event.target.value)
+                }
                 placeholder="Add another amenity"
                 className={inputClass}
               />
+
               <button
                 type="button"
                 onClick={addCustomAmenity}
@@ -588,7 +664,9 @@ export default function AddStudioPage() {
 
             <div className="mt-4 flex flex-wrap gap-2">
               {amenities
-                .filter((item) => !AMENITY_OPTIONS.includes(item))
+                .filter(
+                  (item) => !AMENITY_OPTIONS.includes(item)
+                )
                 .map((item) => (
                   <button
                     type="button"
@@ -603,6 +681,7 @@ export default function AddStudioPage() {
             </div>
           </section>
 
+          {/* Form actions */}
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <Link
               href="/my-listings"
@@ -610,6 +689,7 @@ export default function AddStudioPage() {
             >
               Cancel
             </Link>
+
             <button
               type="submit"
               disabled={submitting}

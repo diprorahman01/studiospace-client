@@ -1,11 +1,7 @@
 
 "use client";
 
-import {
-  useEffect,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -21,6 +17,10 @@ import {
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import StudioImageUploader from "@/components/studios/StudioImageUploader";
+import StudioLocationFields, {
+  parseStudioCoordinates,
+  type StudioLocationValue,
+} from "@/components/studios/StudioLocationFields";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -56,6 +56,11 @@ type Studio = {
   title: string;
   category: string;
   location: string;
+  fullAddress?: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  } | null;
   overview: string;
   hourlyRate: number;
   securityDeposit: number;
@@ -98,11 +103,19 @@ const EMPTY_FORM: FormValues = {
   amenities: [],
 };
 
+const EMPTY_LOCATION: StudioLocationValue = {
+  fullAddress: "",
+  latitude: "",
+  longitude: "",
+};
+
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-violet-600";
 
 function validImageUrl(value: string) {
-  if (!value.trim() || value.length > 2048) return false;
+  if (!value.trim() || value.length > 2048) {
+    return false;
+  }
 
   if (
     value.startsWith("/") &&
@@ -122,7 +135,9 @@ function validImageUrl(value: string) {
 }
 
 function extractStudio(value: unknown): Studio | null {
-  if (!value || typeof value !== "object") return null;
+  if (!value || typeof value !== "object") {
+    return null;
+  }
 
   const response = value as StudioResponse;
   const possible =
@@ -159,6 +174,10 @@ export default function EditStudioPage() {
   const user = session?.user;
 
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
+
+  const [exactLocation, setExactLocation] =
+    useState<StudioLocationValue>(EMPTY_LOCATION);
+
   const [originalStudio, setOriginalStudio] =
     useState<Studio | null>(null);
 
@@ -170,6 +189,10 @@ export default function EditStudioPage() {
 
   const [newImage, setNewImage] = useState("");
   const [newAmenity, setNewAmenity] = useState("");
+
+  // ========================================
+  // Load existing studio information.
+  // ========================================
 
   useEffect(() => {
     if (checkingSession) return;
@@ -229,6 +252,7 @@ export default function EditStudioPage() {
 
         if (!controller.signal.aborted) {
           setOriginalStudio(studio);
+
           setForm({
             title: studio.title || "",
             category: studio.category || "",
@@ -245,6 +269,19 @@ export default function EditStudioPage() {
               ? studio.amenities
               : [],
           });
+
+          setExactLocation({
+            fullAddress: studio.fullAddress || "",
+            latitude:
+              typeof studio.coordinates?.latitude === "number"
+                ? String(studio.coordinates.latitude)
+                : "",
+            longitude:
+              typeof studio.coordinates?.longitude === "number"
+                ? String(studio.coordinates.longitude)
+                : "",
+          });
+
           setLoadError("");
         }
       } catch (error) {
@@ -310,7 +347,9 @@ export default function EditStudioPage() {
     setForm((current) => ({
       ...current,
       amenities: current.amenities.includes(value)
-        ? current.amenities.filter((item) => item !== value)
+        ? current.amenities.filter(
+            (item) => item !== value
+          )
         : current.amenities.length < 30
           ? [...current.amenities, value]
           : current.amenities,
@@ -348,7 +387,13 @@ export default function EditStudioPage() {
     setNewAmenity("");
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  // ========================================
+  // Submit studio updates.
+  // ========================================
+
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     if (saving || !originalStudio || !user) return;
@@ -420,6 +465,29 @@ export default function EditStudioPage() {
       return;
     }
 
+    if (exactLocation.fullAddress.trim().length > 300) {
+      toast.error(
+        "Full address must be 300 characters or fewer."
+      );
+      return;
+    }
+
+    let coordinates: {
+      latitude: number;
+      longitude: number;
+    } | null;
+
+    try {
+      coordinates = parseStudioCoordinates(exactLocation);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Invalid map coordinates."
+      );
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -436,14 +504,14 @@ export default function EditStudioPage() {
             title,
             category: form.category,
             location,
+            fullAddress: exactLocation.fullAddress.trim(),
+            coordinates,
             overview,
             hourlyRate,
             securityDeposit,
             maxCapacity,
             image,
-            images: [
-              ...new Set([image, ...form.images]),
-            ],
+            images: [...new Set([image, ...form.images])],
             amenities: form.amenities,
           }),
         }
@@ -459,7 +527,8 @@ export default function EditStudioPage() {
 
       if (!response.ok || !result.success) {
         toast.error(
-          result.message || "Could not update the studio."
+          result.message ||
+            "Could not update the studio."
         );
         return;
       }
@@ -494,9 +563,11 @@ export default function EditStudioPage() {
           size={42}
           className="text-violet-700"
         />
+
         <h1 className="text-xl font-bold">
           Login Required
         </h1>
+
         <Link
           href="/login"
           className="rounded-xl bg-violet-700 px-5 py-3 text-white"
@@ -514,14 +585,19 @@ export default function EditStudioPage() {
           size={44}
           className="text-red-600"
         />
+
         <h1 className="text-2xl font-bold">
-          {accessDenied ? "Access Denied" : "Unable to Edit Studio"}
+          {accessDenied
+            ? "Access Denied"
+            : "Unable to Edit Studio"}
         </h1>
+
         <p className="text-sm text-slate-500">
           {accessDenied
             ? "You can edit only studios owned by your account."
             : loadError}
         </p>
+
         <Link
           href="/my-listings"
           className="rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white"
@@ -546,14 +622,17 @@ export default function EditStudioPage() {
         <h1 className="text-3xl font-extrabold text-slate-950">
           Edit Studio
         </h1>
+
         <p className="mt-2 text-sm text-slate-500">
-          Update your workspace information and images.
+          Update your workspace information, images,
+          and map location.
         </p>
 
         <form
           onSubmit={handleSubmit}
           className="mt-8 space-y-7"
         >
+          {/* Studio information */}
           <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="mb-6 flex items-center gap-2 text-xl font-bold">
               <Building2
@@ -568,8 +647,8 @@ export default function EditStudioPage() {
                 Studio Name *
                 <input
                   value={form.title}
-                  onChange={(e) =>
-                    setField("title", e.target.value)
+                  onChange={(event) =>
+                    setField("title", event.target.value)
                   }
                   required
                   minLength={5}
@@ -582,13 +661,16 @@ export default function EditStudioPage() {
                 Category *
                 <select
                   value={form.category}
-                  onChange={(e) =>
-                    setField("category", e.target.value)
+                  onChange={(event) =>
+                    setField("category", event.target.value)
                   }
                   required
                   className={inputClass}
                 >
-                  <option value="">Select a category</option>
+                  <option value="">
+                    Select a category
+                  </option>
+
                   {CATEGORIES.map((item) => (
                     <option key={item} value={item}>
                       {item}
@@ -601,8 +683,8 @@ export default function EditStudioPage() {
                 Location *
                 <input
                   value={form.location}
-                  onChange={(e) =>
-                    setField("location", e.target.value)
+                  onChange={(event) =>
+                    setField("location", event.target.value)
                   }
                   maxLength={150}
                   required
@@ -611,15 +693,15 @@ export default function EditStudioPage() {
               </label>
 
               <label className="text-sm font-semibold text-slate-700">
-                Hourly Rate (BDT) *
+                Hourly Rate (USD) *
                 <input
                   type="number"
                   min="1"
                   max="100000"
                   step="0.01"
                   value={form.hourlyRate}
-                  onChange={(e) =>
-                    setField("hourlyRate", e.target.value)
+                  onChange={(event) =>
+                    setField("hourlyRate", event.target.value)
                   }
                   required
                   className={inputClass}
@@ -627,15 +709,18 @@ export default function EditStudioPage() {
               </label>
 
               <label className="text-sm font-semibold text-slate-700">
-                Security Deposit (BDT) *
+                Security Deposit (USD) *
                 <input
                   type="number"
                   min="0"
                   max="1000000"
                   step="0.01"
                   value={form.securityDeposit}
-                  onChange={(e) =>
-                    setField("securityDeposit", e.target.value)
+                  onChange={(event) =>
+                    setField(
+                      "securityDeposit",
+                      event.target.value
+                    )
                   }
                   required
                   className={inputClass}
@@ -650,8 +735,11 @@ export default function EditStudioPage() {
                   max="500"
                   step="1"
                   value={form.maxCapacity}
-                  onChange={(e) =>
-                    setField("maxCapacity", e.target.value)
+                  onChange={(event) =>
+                    setField(
+                      "maxCapacity",
+                      event.target.value
+                    )
                   }
                   required
                   className={inputClass}
@@ -680,8 +768,8 @@ export default function EditStudioPage() {
                 Detailed Overview *
                 <textarea
                   value={form.overview}
-                  onChange={(e) =>
-                    setField("overview", e.target.value)
+                  onChange={(event) =>
+                    setField("overview", event.target.value)
                   }
                   rows={6}
                   minLength={30}
@@ -693,6 +781,14 @@ export default function EditStudioPage() {
             </div>
           </section>
 
+          {/* New exact location fields */}
+          <StudioLocationFields
+            value={exactLocation}
+            onChange={setExactLocation}
+            disabled={saving}
+          />
+
+          {/* Images */}
           <section className="space-y-5 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="text-xl font-bold text-slate-950">
               Studio Images
@@ -702,8 +798,8 @@ export default function EditStudioPage() {
               Main Image URL *
               <input
                 value={form.image}
-                onChange={(e) =>
-                  setField("image", e.target.value)
+                onChange={(event) =>
+                  setField("image", event.target.value)
                 }
                 required
                 className={inputClass}
@@ -713,7 +809,9 @@ export default function EditStudioPage() {
             <StudioImageUploader
               label="Upload New Main Image"
               disabled={saving}
-              onUploaded={(url) => setField("image", url)}
+              onUploaded={(url) =>
+                setField("image", url)
+              }
             />
 
             {validImageUrl(form.image) && (
@@ -733,12 +831,13 @@ export default function EditStudioPage() {
               <div className="flex gap-3">
                 <input
                   value={newImage}
-                  onChange={(e) =>
-                    setNewImage(e.target.value)
+                  onChange={(event) =>
+                    setNewImage(event.target.value)
                   }
                   placeholder="Additional image URL"
                   className={inputClass}
                 />
+
                 <button
                   type="button"
                   onClick={() => addImage(newImage)}
@@ -751,7 +850,9 @@ export default function EditStudioPage() {
               <div className="mt-4">
                 <StudioImageUploader
                   label="Upload Gallery Image"
-                  disabled={saving || form.images.length >= 9}
+                  disabled={
+                    saving || form.images.length >= 9
+                  }
                   onUploaded={addImage}
                 />
               </div>
@@ -768,6 +869,7 @@ export default function EditStudioPage() {
                       alt="Studio gallery"
                       className="h-28 w-full object-cover"
                     />
+
                     <button
                       type="button"
                       aria-label="Remove gallery image"
@@ -789,6 +891,7 @@ export default function EditStudioPage() {
             </div>
           </section>
 
+          {/* Amenities */}
           <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
             <h2 className="mb-5 text-xl font-bold text-slate-950">
               Amenities
@@ -814,12 +917,13 @@ export default function EditStudioPage() {
             <div className="mt-5 flex gap-3">
               <input
                 value={newAmenity}
-                onChange={(e) =>
-                  setNewAmenity(e.target.value)
+                onChange={(event) =>
+                  setNewAmenity(event.target.value)
                 }
                 placeholder="Add another amenity"
                 className={inputClass}
               />
+
               <button
                 type="button"
                 onClick={addCustomAmenity}
@@ -831,7 +935,9 @@ export default function EditStudioPage() {
 
             <div className="mt-4 flex flex-wrap gap-2">
               {form.amenities
-                .filter((item) => !AMENITIES.includes(item))
+                .filter(
+                  (item) => !AMENITIES.includes(item)
+                )
                 .map((item) => (
                   <button
                     key={item}
@@ -846,6 +952,7 @@ export default function EditStudioPage() {
             </div>
           </section>
 
+          {/* Form buttons */}
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <Link
               href="/my-listings"
@@ -853,6 +960,7 @@ export default function EditStudioPage() {
             >
               Cancel
             </Link>
+
             <button
               type="submit"
               disabled={saving}
