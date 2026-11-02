@@ -4,6 +4,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ThemeProvider from "@/providers/ThemeProvider";
 import ThemeToggle from "@/components/layout/ThemeToggle";
+import BookingNotifications from "@/components/layout/BookingNotifications";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -29,6 +30,7 @@ export default function RootLayout({
           <main>{children}</main>
           <Footer />
           <ThemeToggle />
+          <BookingNotifications />
           <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
