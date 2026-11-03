@@ -3,9 +3,11 @@ import type { Metadata } from "next";
 
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+
 import ThemeProvider from "@/providers/ThemeProvider";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import BookingNotifications from "@/components/layout/BookingNotifications";
+import ProtectedRouteGate from "@/components/auth/ProtectedRouteGate";
 
 import { Toaster } from "sonner";
 
@@ -24,7 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+    >
       <body
         suppressHydrationWarning
         className="min-h-screen bg-[#f8f7fd] text-slate-900 antialiased"
@@ -32,7 +37,11 @@ export default function RootLayout({
         <ThemeProvider>
           <Navbar />
 
-          <main>{children}</main>
+          <main>
+            <ProtectedRouteGate>
+              {children}
+            </ProtectedRouteGate>
+          </main>
 
           <Footer />
 
