@@ -24,45 +24,19 @@ import BrandLogo from "@/components/ui/BrandLogo";
 const COPYRIGHT_YEAR = 2026;
 
 const quickLinks = [
-  {
-    name: "Home",
-    href: "/",
-  },
-  {
-    name: "Explore Studios",
-    href: "/studios",
-  },
-  {
-    name: "How It Works",
-    href: "/#how-it-works",
-  },
-  {
-    name: "About Us",
-    href: "/#about",
-  },
+  { name: "Home", href: "/" },
+  { name: "Explore Studios", href: "/studios" },
+  { name: "How It Works", href: "/#how-it-works" },
+  { name: "About Us", href: "/#about" },
+  { name: "Terms & Conditions", href: "/terms" },
 ];
 
 const categories = [
-  {
-    name: "Photo Studios",
-    value: "Photo Studio",
-  },
-  {
-    name: "Sound Stages",
-    value: "Film Stage",
-  },
-  {
-    name: "Podcast Rooms",
-    value: "Podcast Lounge",
-  },
-  {
-    name: "Music Suites",
-    value: "Music Suite",
-  },
-  {
-    name: "Art Workshops",
-    value: "Art Workshop",
-  },
+  { name: "Photo Studios", value: "Photo Studio" },
+  { name: "Sound Stages", value: "Film Stage" },
+  { name: "Podcast Rooms", value: "Podcast Lounge" },
+  { name: "Music Suites", value: "Music Suite" },
+  { name: "Art Workshops", value: "Art Workshop" },
 ];
 
 const socialLinks = [
@@ -114,7 +88,6 @@ export default function Footer() {
     toast.info(
       "Newsletter subscriptions are coming soon."
     );
-
     setEmail("");
   }
 
@@ -140,8 +113,8 @@ export default function Footer() {
 
             <p className="mt-5 max-w-xs text-sm leading-7 text-[#d9c9e7]">
               A creative studio marketplace connecting
-              creators with inspiring spaces for photography,
-              recording, film and more.
+              creators with inspiring spaces for
+              photography, recording, film and more.
             </p>
 
             <div className="mt-6 flex items-center gap-3">
@@ -230,8 +203,8 @@ export default function Footer() {
             </h3>
 
             <p className="mt-5 text-sm leading-7 text-[#d9c9e7]">
-              Interested in future updates about creative
-              studios and the platform?
+              Interested in future updates about
+              creative studios and the platform?
             </p>
 
             <form
@@ -287,10 +260,26 @@ export default function Footer() {
         </div>
 
         <div className="mt-14 flex flex-col gap-4 border-t border-white/15 pt-7 text-sm text-[#cbb8dc] md:flex-row md:items-center md:justify-between">
-          <p>
-            © {COPYRIGHT_YEAR} StudioSpace. All rights
-            reserved.
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span>
+              © {COPYRIGHT_YEAR} StudioSpace.
+              All rights reserved.
+            </span>
+
+            <span
+              aria-hidden="true"
+              className="hidden text-white/40 sm:inline"
+            >
+              |
+            </span>
+
+            <Link
+              href="/terms"
+              className="font-medium text-[#e5c9ff] underline-offset-4 transition hover:text-white hover:underline"
+            >
+              Terms &amp; Conditions
+            </Link>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <Sparkles

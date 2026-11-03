@@ -2,6 +2,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -30,22 +31,10 @@ import GradientIcon, {
 } from "@/components/ui/GradientIcon";
 
 const PUBLIC_LINKS = [
-  {
-    label: "Home",
-    href: "/",
-  },
-  {
-    label: "Explore Studios",
-    href: "/studios",
-  },
-  {
-    label: "How It Works",
-    href: "/#how-it-works",
-  },
-  {
-    label: "About Us",
-    href: "/#about",
-  },
+  { label: "Home", href: "/" },
+  { label: "Explore Studios", href: "/studios" },
+  { label: "How It Works", href: "/#how-it-works" },
+  { label: "About Us", href: "/#about" },
 ];
 
 const ACCOUNT_LINKS: {
@@ -63,18 +52,18 @@ const ACCOUNT_LINKS: {
     description: "Your account overview",
   },
   {
-    label: "My Listings",
+    label: "Add New Studio",
+    href: "/add-studio",
+    icon: Plus,
+    tone: "amber",
+    description: "Publish a new workspace",
+  },
+  {
+    label: "My Studio Listings",
     href: "/my-listings",
     icon: Building2,
     tone: "blue",
-    description: "Manage studios you own",
-  },
-  {
-    label: "Host Bookings",
-    href: "/host-bookings",
-    icon: Users,
-    tone: "pink",
-    description: "Customer reservations",
+    description: "Manage your studios",
   },
   {
     label: "My Bookings",
@@ -84,11 +73,11 @@ const ACCOUNT_LINKS: {
     description: "Reservations you made",
   },
   {
-    label: "Add Studio",
-    href: "/add-studio",
-    icon: Plus,
-    tone: "amber",
-    description: "Publish a new workspace",
+    label: "Host Bookings",
+    href: "/host-bookings",
+    icon: Users,
+    tone: "pink",
+    description: "Customer reservations",
   },
 ];
 
@@ -96,9 +85,7 @@ function isActivePath(
   pathname: string,
   href: string
 ) {
-  if (href === "/") {
-    return pathname === "/";
-  }
+  if (href === "/") return pathname === "/";
 
   if (href.startsWith("/#")) {
     return false;
@@ -118,14 +105,62 @@ function isActivePath(
   );
 }
 
+type UserAvatarProps = {
+  image?: string | null;
+  name: string;
+  initials: string;
+  size?: "sm" | "md";
+};
+
+function UserAvatar({
+  image,
+  name,
+  initials,
+  size = "sm",
+}: UserAvatarProps) {
+  const [failed, setFailed] = useState(false);
+
+  const sizeClass =
+    size === "md" ? "h-11 w-11" : "h-9 w-9";
+
+  return (
+    <span
+      className={[
+        "relative inline-flex shrink-0 items-center",
+        "justify-center overflow-hidden rounded-full",
+        "border border-white/25",
+        "bg-gradient-to-br from-violet-600",
+        "via-fuchsia-600 to-purple-800",
+        "text-xs font-bold text-white",
+        "shadow-[0_5px_16px_rgba(142,65,226,0.35)]",
+        sizeClass,
+      ].join(" ")}
+    >
+      {image && !failed ? (
+        <Image
+          src={image}
+          alt={`${name}'s profile photo`}
+          fill
+          sizes="44px"
+          unoptimized
+          onError={() => setFailed(true)}
+          className="object-cover"
+        />
+      ) : (
+        <span aria-hidden="true">
+          {initials}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function NavigationContent() {
   const pathname = usePathname();
   const router = useRouter();
 
-  const {
-    data: session,
-    isPending,
-  } = authClient.useSession();
+  const { data: session, isPending } =
+    authClient.useSession();
 
   const user = session?.user;
 
@@ -180,11 +215,7 @@ function NavigationContent() {
       router.push("/");
       router.refresh();
     } catch (error) {
-      console.error(
-        "Sign out error:",
-        error
-      );
-
+      console.error("Sign out error:", error);
       toast.error(
         "Unable to sign out. Please try again."
       );
@@ -250,12 +281,11 @@ function NavigationContent() {
                 <button
                   type="button"
                   onClick={() =>
-                    setProfileOpen(
-                      (old) => !old
-                    )
+                    setProfileOpen((old) => !old)
                   }
                   aria-expanded={profileOpen}
                   aria-haspopup="menu"
+                  aria-controls="account-navigation-menu"
                   className="flex items-center gap-3 rounded-xl border px-3 py-2 text-sm font-semibold"
                   style={{
                     background:
@@ -265,9 +295,12 @@ function NavigationContent() {
                     color: "var(--ss-ink)",
                   }}
                 >
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-600 to-purple-800 text-xs font-bold text-white shadow-[0_5px_16px_rgba(142,65,226,0.35)]">
-                    {initials}
-                  </span>
+                  <UserAvatar
+                    key={user.image || user.id}
+                    image={user.image}
+                    name={displayName}
+                    initials={initials}
+                  />
 
                   <span className="max-w-28 truncate">
                     {displayName}
@@ -295,12 +328,13 @@ function NavigationContent() {
                     />
 
                     <div
+                      id="account-navigation-menu"
                       role="menu"
                       aria-label="Account navigation"
                       className="ss-navbar-panel absolute right-0 top-[calc(100%+12px)] z-50 w-80 overflow-hidden rounded-[22px]"
                     >
                       <div
-                        className="border-b px-5 py-4"
+                        className="flex items-center gap-3 border-b px-5 py-4"
                         style={{
                           borderColor:
                             "var(--ss-border)",
@@ -308,78 +342,83 @@ function NavigationContent() {
                             "var(--ss-surface-alt)",
                         }}
                       >
-                        <p
-                          className="truncate text-sm font-bold"
-                          style={{
-                            color:
-                              "var(--ss-ink)",
-                          }}
-                        >
-                          {displayName}
-                        </p>
+                        <UserAvatar
+                          key={`menu-${user.image || user.id}`}
+                          image={user.image}
+                          name={displayName}
+                          initials={initials}
+                          size="md"
+                        />
 
-                        <p
-                          className="mt-1 truncate text-xs"
-                          style={{
-                            color:
-                              "var(--ss-muted)",
-                          }}
-                        >
-                          {user.email}
-                        </p>
+                        <div className="min-w-0">
+                          <p
+                            className="truncate text-sm font-bold"
+                            style={{
+                              color: "var(--ss-ink)",
+                            }}
+                          >
+                            {displayName}
+                          </p>
+
+                          <p
+                            className="mt-1 truncate text-xs"
+                            style={{
+                              color: "var(--ss-muted)",
+                            }}
+                          >
+                            {user.email}
+                          </p>
+                        </div>
                       </div>
 
                       <div className="p-2">
-                        {ACCOUNT_LINKS.map(
-                          (item) => {
-                            const active =
-                              isActivePath(
-                                pathname,
-                                item.href
-                              );
+                        {ACCOUNT_LINKS.map((item) => {
+                          const active = isActivePath(
+                            pathname,
+                            item.href
+                          );
 
-                            return (
-                              <Link
-                                key={item.href}
-                                href={item.href}
-                                role="menuitem"
-                                onClick={closeMenus}
-                                className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-violet-300/15"
-                                style={{
-                                  color: active
-                                    ? "var(--ss-accent)"
-                                    : "var(--ss-ink)",
-                                  background: active
-                                    ? "var(--ss-surface-alt)"
-                                    : undefined,
-                                }}
-                              >
-                                <GradientIcon
-                                  icon={item.icon}
-                                  tone={item.tone}
-                                  size="xs"
-                                  className="group-hover:scale-105"
-                                />
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              role="menuitem"
+                              onClick={closeMenus}
+                              className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-violet-300/15"
+                              style={{
+                                color: active
+                                  ? "var(--ss-accent)"
+                                  : "var(--ss-ink)",
+                                background: active
+                                  ? "var(--ss-surface-alt)"
+                                  : undefined,
+                              }}
+                            >
+                              <GradientIcon
+                                icon={item.icon}
+                                tone={item.tone}
+                                size="xs"
+                                className="group-hover:scale-105"
+                              />
 
-                                <span className="min-w-0">
-                                  <span className="block text-sm font-semibold">
-                                    {item.label}
-                                  </span>
-
-                                  <span
-                                    className="block text-xs"
-                                    style={{
-                                      color:
-                                        "var(--ss-muted)",
-                                    }}
-                                  >
-                                    {item.description}
-                                  </span>
+                              <span className="min-w-0">
+                                <span className="block text-sm font-semibold">
+                                  {item.label}
                                 </span>
-                              </Link>
-                            );
-                          }
-                        )}
+
+                                <span
+                                  className="block text-xs"
+                                  style={{
+                                    color:
+                                      "var(--ss-muted)",
+                                  }}
+                                >
+                                  {item.description}
+                                </span>
+                              </span>
+                            </Link>
+                          );
+                        })}
                       </div>
 
                       <div
@@ -442,9 +481,7 @@ function NavigationContent() {
         <button
           type="button"
           onClick={() =>
-            setMobileOpen(
-              (old) => !old
-            )
+            setMobileOpen((old) => !old)
           }
           aria-label={
             mobileOpen
@@ -535,9 +572,13 @@ function NavigationContent() {
                       "var(--ss-surface-alt)",
                   }}
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 via-fuchsia-600 to-purple-800 text-sm font-bold text-white">
-                    {initials}
-                  </span>
+                  <UserAvatar
+                    key={`mobile-${user.image || user.id}`}
+                    image={user.image}
+                    name={displayName}
+                    initials={initials}
+                    size="md"
+                  />
 
                   <div className="min-w-0">
                     <p
@@ -591,11 +632,10 @@ function NavigationContent() {
                       className="group-hover:scale-105"
                     />
 
-                    <span>
+                    <span className="min-w-0">
                       <span className="block">
                         {item.label}
                       </span>
-
                       <span
                         className="block text-xs font-normal"
                         style={{

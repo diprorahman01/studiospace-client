@@ -46,3 +46,12 @@ All sensitive mutations are authenticated and user-owned records are scoped on t
 ## Limitations
 
 Confirmed booking amounts are not proof of payment. The downloadable PDF is a booking confirmation/price record, not a paid tax invoice. The sample newsletter UI does not represent a deployed mailing list. Studio ratings are derived from submitted reviews when review APIs are enabled.
+
+
+## Frontend_(Client):
+npm install
+npm run dev
+
+## Backend (Server):
+npm install
+npm run dev
