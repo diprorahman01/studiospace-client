@@ -43,14 +43,6 @@ const categories = [
   "Creative Workspace",
 ];
 
-const demoRatings: Record<string, number> = {
-  "The Fashion Editorial Studio": 4.9,
-  "The Green Screen Production Studio": 4.7,
-  "The Product Photography Studio": 4.8,
-  "The Dance & Performance Studio": 4.6,
-  "The Live Streaming Studio": 4.9,
-  "The Pottery & Ceramic Art Studio": 4.8,
-};
 
 function price(value: number) {
   return Number(value || 0).toLocaleString("en-US", {
@@ -59,16 +51,22 @@ function price(value: number) {
 }
 
 function ratingFor(studio: Studio) {
-  if (typeof studio.rating === "number" && studio.rating > 0) {
-    return { value: studio.rating, sample: false };
+  if (
+    typeof studio.rating === "number" &&
+    studio.rating > 0
+  ) {
+    return {
+      value: studio.rating,
+      sample: false,
+    };
   }
 
-  const sample = demoRatings[studio.title];
-
-  return sample === undefined
-    ? { value: null, sample: false }
-    : { value: sample, sample: true };
+  return {
+    value: null,
+    sample: false,
+  };
 }
+
 
 function bookable(studio: Studio) {
   return (

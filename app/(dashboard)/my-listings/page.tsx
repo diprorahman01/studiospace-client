@@ -908,7 +908,7 @@ export default function MyListingsPage() {
                     </Link>
 
                     <Link
-                      href={`/edit-studio/${studio._id}`}
+                      href={`/studios/edit/${studio._id}`}
                       className="flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-3 py-3 text-sm font-semibold text-white hover:bg-violet-800"
                     >
                       <Pencil size={16} />
