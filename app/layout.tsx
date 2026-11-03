@@ -1,5 +1,6 @@
 
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -26,10 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-    >
+    <html lang="en" suppressHydrationWarning>
       <body
         suppressHydrationWarning
         className="min-h-screen bg-[#f8f7fd] text-slate-900 antialiased"
@@ -38,9 +36,20 @@ export default function RootLayout({
           <Navbar />
 
           <main>
-            <ProtectedRouteGate>
-              {children}
-            </ProtectedRouteGate>
+            <Suspense
+              fallback={
+                <div
+                  role="status"
+                  className="flex min-h-[60vh] items-center justify-center px-5 text-sm text-slate-500"
+                >
+                  Loading StudioSpace...
+                </div>
+              }
+            >
+              <ProtectedRouteGate>
+                {children}
+              </ProtectedRouteGate>
+            </Suspense>
           </main>
 
           <Footer />
