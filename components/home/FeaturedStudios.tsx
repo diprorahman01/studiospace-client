@@ -1,6 +1,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+
 import {
   ArrowRight,
   Clock3,
@@ -12,13 +13,19 @@ import {
 import { getFeaturedStudios } from "@/lib/api/studios";
 
 function formatPrice(value: number) {
-  return new Intl.NumberFormat("en-BD", {
-    maximumFractionDigits: 0,
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
 export default async function FeaturedStudios() {
-  let studios: Awaited<ReturnType<typeof getFeaturedStudios>> = [];
+  let studios: Awaited<
+    ReturnType<typeof getFeaturedStudios>
+  > = [];
+
   let loadError = false;
 
   try {
@@ -77,6 +84,7 @@ export default async function FeaturedStudios() {
             >
               Featured studios are temporarily unavailable
             </h3>
+
             <p
               className="mt-3 text-sm"
               style={{ color: "var(--ss-muted)" }}
@@ -84,6 +92,7 @@ export default async function FeaturedStudios() {
               We couldn&apos;t load studios right now.
               Please try again shortly.
             </p>
+
             <Link
               href="/studios"
               className="ss-cta-primary mt-6"
@@ -100,6 +109,7 @@ export default async function FeaturedStudios() {
             >
               New creative spaces are coming
             </h3>
+
             <p
               className="mt-3 text-sm"
               style={{ color: "var(--ss-muted)" }}
@@ -152,8 +162,11 @@ export default async function FeaturedStudios() {
                           size={14}
                           className="fill-amber-400 text-amber-500"
                         />
+
                         {studio.rating.toFixed(1)}
-                        {typeof studio.reviewCount === "number" && (
+
+                        {typeof studio.reviewCount ===
+                          "number" && (
                           <span className="font-normal text-slate-500">
                             ({studio.reviewCount})
                           </span>
@@ -180,6 +193,7 @@ export default async function FeaturedStudios() {
                       size={16}
                       className="mt-0.5 shrink-0"
                     />
+
                     <span className="line-clamp-2">
                       {studio.location}
                     </span>
@@ -207,11 +221,13 @@ export default async function FeaturedStudios() {
                       >
                         Starting at
                       </p>
+
                       <p
                         className="mt-1 text-2xl font-extrabold"
                         style={{ color: "var(--ss-accent)" }}
                       >
-                        ৳{formatPrice(studio.hourlyRate)}
+                        {formatPrice(studio.hourlyRate)}
+
                         <span
                           className="ml-1 text-xs font-medium"
                           style={{ color: "var(--ss-muted)" }}
