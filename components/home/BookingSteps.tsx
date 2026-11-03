@@ -8,13 +8,24 @@ import {
   Sparkles,
 } from "lucide-react";
 
-const bookingSteps = [
+import GradientIcon, {
+  type GradientIconTone,
+} from "@/components/ui/GradientIcon";
+
+const bookingSteps: {
+  number: string;
+  title: string;
+  description: string;
+  icon: typeof Search;
+  tone: GradientIconTone;
+}[] = [
   {
     number: "01",
     title: "Discover Spaces",
     description:
       "Explore creative studios and find the perfect space for your project.",
     icon: Search,
+    tone: "violet",
   },
   {
     number: "02",
@@ -22,6 +33,7 @@ const bookingSteps = [
     description:
       "Choose your preferred date and time according to your schedule.",
     icon: CalendarDays,
+    tone: "blue",
   },
   {
     number: "03",
@@ -29,6 +41,7 @@ const bookingSteps = [
     description:
       "Send a booking request and manage your reservation easily.",
     icon: ClipboardCheck,
+    tone: "cyan",
   },
   {
     number: "04",
@@ -36,6 +49,7 @@ const bookingSteps = [
     description:
       "Visit your confirmed studio and bring your creative vision to life.",
     icon: Clapperboard,
+    tone: "pink",
   },
 ];
 
@@ -67,67 +81,79 @@ export default function BookingSteps() {
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-          {bookingSteps.map((step, index) => {
-            const Icon = step.icon;
-
-            return (
-              <div
-                key={step.number}
-                className="relative min-w-0"
+          {bookingSteps.map((step, index) => (
+            <div
+              key={step.number}
+              className="relative min-w-0"
+            >
+              <article
+                className={[
+                  "ss-card group",
+                  "relative flex h-full min-h-[270px]",
+                  "flex-col items-center p-6 text-center",
+                  "transition-transform duration-300",
+                  "hover:-translate-y-1",
+                ].join(" ")}
               >
-                <article className="ss-card group flex h-full min-h-[258px] flex-col items-center p-6 text-center">
-                  <div className="mb-4 flex w-full justify-end">
-                    <span
-                      className="rounded-full border px-3 py-1 text-xs font-extrabold tracking-wider"
-                      style={{
-                        background: "var(--ss-surface-alt)",
-                        color: "var(--ss-accent)",
-                        borderColor: "var(--ss-border)",
-                      }}
-                    >
-                      {step.number}
-                    </span>
-                  </div>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-8 bottom-0 h-20 rounded-full bg-purple-500/10 blur-3xl"
+                />
 
-                  <div className="ss-icon-tile mb-5 transition-transform duration-300 group-hover:scale-110">
-                    <Icon
-                      size={29}
-                      strokeWidth={1.8}
-                      aria-hidden="true"
-                    />
-                  </div>
-
-                  <h3
-                    className="text-[17px] font-extrabold tracking-tight"
-                    style={{ color: "var(--ss-ink)" }}
-                  >
-                    {step.title}
-                  </h3>
-
-                  <p
-                    className="mt-3 text-[13px] leading-[1.8]"
-                    style={{ color: "var(--ss-muted)" }}
-                  >
-                    {step.description}
-                  </p>
-                </article>
-
-                {index < bookingSteps.length - 1 && (
+                <div className="relative z-10 mb-3 flex w-full justify-end">
                   <span
-                    aria-hidden="true"
-                    className="absolute -right-[22px] top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border shadow-md lg:flex"
+                    className="rounded-full border px-3 py-1 text-xs font-extrabold tracking-wider"
                     style={{
-                      background: "var(--ss-surface)",
-                      borderColor: "var(--ss-border)",
+                      background: "var(--ss-surface-alt)",
                       color: "var(--ss-accent)",
+                      borderColor: "var(--ss-border)",
                     }}
                   >
-                    <ArrowRight size={17} />
+                    {step.number}
                   </span>
-                )}
-              </div>
-            );
-          })}
+                </div>
+
+                <GradientIcon
+                  icon={step.icon}
+                  tone={step.tone}
+                  size="lg"
+                  className="relative z-10 mb-5 group-hover:scale-110"
+                />
+
+                <h3
+                  className="relative z-10 text-[17px] font-extrabold tracking-tight"
+                  style={{
+                    color: "var(--ss-ink)",
+                  }}
+                >
+                  {step.title}
+                </h3>
+
+                <p
+                  className="relative z-10 mt-3 text-[13px] leading-[1.8]"
+                  style={{
+                    color: "var(--ss-muted)",
+                  }}
+                >
+                  {step.description}
+                </p>
+              </article>
+
+              {index < bookingSteps.length - 1 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -right-[22px] top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border shadow-md lg:flex"
+                  style={{
+                    background: "var(--ss-surface)",
+                    borderColor: "var(--ss-border)",
+                    color: "var(--ss-accent)",
+                  }}
+                >
+                  <ArrowRight size={17} />
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </section>
