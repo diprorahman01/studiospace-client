@@ -108,7 +108,7 @@ export default function HeroSlider() {
                     </Link>
 
                     <Link
-                      href="/add-studio"
+                      href="/studios"
                       className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/40 bg-white/10 px-7 py-3.5 text-sm font-bold text-white backdrop-blur-md transition hover:-translate-y-1 hover:bg-white/20"
                     >
                       <Aperture size={18} />

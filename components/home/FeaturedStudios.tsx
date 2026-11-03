@@ -155,24 +155,31 @@ export default async function FeaturedStudios() {
                     {studio.category}
                   </span>
 
-                  {typeof studio.rating === "number" &&
-                    studio.rating > 0 && (
-                      <div className="absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-[#322044] shadow-sm">
-                        <Star
-                          size={14}
-                          className="fill-amber-400 text-amber-500"
-                        />
+                  
+<div className="absolute bottom-4 right-4 inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-[#322044] shadow-sm">
+  {typeof studio.rating === "number" &&
+  studio.rating > 0 ? (
+    <>
+      <Star
+        size={14}
+        className="fill-amber-400 text-amber-500"
+      />
 
-                        {studio.rating.toFixed(1)}
+      {studio.rating.toFixed(1)}
 
-                        {typeof studio.reviewCount ===
-                          "number" && (
-                          <span className="font-normal text-slate-500">
-                            ({studio.reviewCount})
-                          </span>
-                        )}
-                      </div>
-                    )}
+      {typeof studio.reviewCount === "number" && (
+        <span className="font-normal text-slate-500">
+          ({studio.reviewCount})
+        </span>
+      )}
+    </>
+  ) : (
+    <span className="font-semibold text-violet-700">
+      New
+    </span>
+  )}
+</div>
+
                 </Link>
 
                 <div className="flex flex-1 flex-col p-5 sm:p-6">

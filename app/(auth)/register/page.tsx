@@ -48,10 +48,10 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 8 || password.length > 128) {
-      toast.error("Password must contain 8–128 characters.");
-      return;
-    }
+    if (password.length < 6 || password.length > 128) {
+  toast.error("Password must contain 6–128 characters.");
+  return;
+}
 
     if (!/[A-Z]/.test(password)) {
       toast.error("Password must contain an uppercase letter.");
