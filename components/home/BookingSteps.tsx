@@ -23,7 +23,7 @@ const bookingSteps: {
     number: "01",
     title: "Discover Spaces",
     description:
-      "Explore creative studios and find the perfect space for your project.",
+      "Browse photography studios, film stages, podcast rooms, music suites and creative workspaces.",
     icon: Search,
     tone: "violet",
   },
@@ -31,15 +31,15 @@ const bookingSteps: {
     number: "02",
     title: "Select Shoot Hours",
     description:
-      "Choose your preferred date and time according to your schedule.",
+      "Check studio availability, compare hourly rates and select the date and time for your session.",
     icon: CalendarDays,
     tone: "blue",
   },
   {
     number: "03",
-    title: "Request Your Booking",
+    title: "Book Instantly",
     description:
-      "Send a booking request and manage your reservation easily.",
+      "Submit your booking request immediately. The studio host may need to confirm it before your session is reserved.",
     icon: ClipboardCheck,
     tone: "cyan",
   },
@@ -47,7 +47,7 @@ const bookingSteps: {
     number: "04",
     title: "Create & Produce",
     description:
-      "Visit your confirmed studio and bring your creative vision to life.",
+      "Once your booking is confirmed, visit the studio and bring your creative project to life.",
     icon: Clapperboard,
     tone: "pink",
   },
@@ -75,8 +75,9 @@ export default function BookingSteps() {
           </h2>
 
           <p className="ss-description mx-auto mt-4 max-w-2xl">
-            From discovering the right studio to bringing
-            your project to life, the process is simple.
+            Discover your ideal creative space, choose
+            your preferred schedule, submit a booking
+            request and get ready to create.
           </p>
         </div>
 
@@ -89,7 +90,7 @@ export default function BookingSteps() {
               <article
                 className={[
                   "ss-card group",
-                  "relative flex h-full min-h-[270px]",
+                  "relative flex h-full min-h-[300px]",
                   "flex-col items-center p-6 text-center",
                   "transition-transform duration-300",
                   "hover:-translate-y-1",
@@ -104,7 +105,8 @@ export default function BookingSteps() {
                   <span
                     className="rounded-full border px-3 py-1 text-xs font-extrabold tracking-wider"
                     style={{
-                      background: "var(--ss-surface-alt)",
+                      background:
+                        "var(--ss-surface-alt)",
                       color: "var(--ss-accent)",
                       borderColor: "var(--ss-border)",
                     }}

@@ -4,10 +4,10 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
-  Camera,
-  Headset,
+  Clock3,
   ShieldCheck,
   Sparkles,
+  Wrench,
 } from "lucide-react";
 
 import GradientIcon, {
@@ -21,31 +21,31 @@ const supportFeatures: {
   tone: GradientIconTone;
 }[] = [
   {
-    title: "Clear Booking Details",
+    title: "Liability Protection",
     description:
-      "Review studio information, rates and booking details before making a request.",
+      "Review booking details and host terms before your session. StudioSpace does not currently provide liability insurance, so additional coverage should be arranged independently if needed.",
     icon: ShieldCheck,
     tone: "blue",
   },
   {
-    title: "Host Information",
+    title: "Verified Profiles",
     description:
-      "Explore the details shared by hosts and learn more about each creative space.",
+      "View host and studio information to make informed booking decisions. Independent identity verification is not currently guaranteed for every host.",
     icon: BadgeCheck,
     tone: "pink",
   },
   {
-    title: "Equipment Information",
+    title: "Equipment Safety",
     description:
-      "Check available equipment and facilities to plan your creative session.",
-    icon: Camera,
+      "Check listed studio facilities and equipment before booking. Confirm equipment condition and safety arrangements directly with the host before use.",
+    icon: Wrench,
     tone: "cyan",
   },
   {
-    title: "Booking Management",
+    title: "24/7 Host Support",
     description:
-      "Manage your reservations and stay informed about their current status.",
-    icon: Headset,
+      "Access your online booking details and reservation status at any time. Host responses and staffed customer support are not guaranteed around the clock.",
+    icon: Clock3,
     tone: "violet",
   },
 ];
@@ -69,17 +69,17 @@ export default function HostSupport() {
               id="host-support-heading"
               className="mt-5 text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl"
             >
-              Creator Support &
+              Host Guarantee &
 
               <span className="block bg-gradient-to-r from-[#a9adff] via-[#d89dff] to-[#ee9edc] bg-clip-text text-transparent">
-                Studio Hosting
+                Creator Support
               </span>
             </h2>
 
             <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-[#cdc7df]">
-              StudioSpace is designed to make creative
-              studio discovery and hosting more
-              transparent, organized, and convenient.
+              Understand studio policies, host profiles,
+              equipment arrangements and booking support
+              before planning your next creative session.
             </p>
           </div>
 
