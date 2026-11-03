@@ -297,9 +297,9 @@ export default function RegisterPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder="At least 6 characters"
                   autoComplete="new-password"
-                  minLength={8}
+                  minLength={6}
                   maxLength={128}
                   required
                   disabled={loading || googleLoading}
@@ -321,7 +321,7 @@ export default function RegisterPage() {
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                8–128 characters, including an uppercase and
+                6–128 characters, including an uppercase and
                 a lowercase letter.
               </p>
             </div>
