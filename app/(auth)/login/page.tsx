@@ -61,7 +61,8 @@ function safeReturnPath(value: string | null): string {
   }
 }
 
-function getReturnPath() {
+
+function getReturnPath(): string {
   if (typeof window === "undefined") {
     return "/";
   }
@@ -70,13 +71,49 @@ function getReturnPath() {
     window.location.search
   );
 
-  return safeReturnPath(
+  // First check the destination in the login URL.
+  const destination =
     params.get("next") ||
-      params.get("callbackUrl") ||
-      params.get("callbackURL") ||
-      params.get("redirect")
-  );
+    params.get("callbackUrl") ||
+    params.get("callbackURL") ||
+    params.get("redirect");
+
+  if (destination) {
+    return safeReturnPath(destination);
+  }
+
+  // If the URL has no destination, check whether
+  // a private page saved one before redirecting.
+  try {
+    const saved = sessionStorage.getItem(
+      "studiospace-pending-return-path"
+    );
+
+    if (saved) {
+      const record = JSON.parse(saved) as {
+        path?: string;
+        timestamp?: number;
+      };
+
+      const validAge =
+        typeof record.timestamp === "number" &&
+        record.timestamp <= Date.now() &&
+        Date.now() - record.timestamp <= 600000;
+
+      if (
+        typeof record.path === "string" &&
+        validAge
+      ) {
+        return safeReturnPath(record.path);
+      }
+    }
+  } catch {
+    // Continue to homepage if storage is unavailable.
+  }
+
+  return "/";
 }
+
 
 export default function LoginPage() {
   const router = useRouter();

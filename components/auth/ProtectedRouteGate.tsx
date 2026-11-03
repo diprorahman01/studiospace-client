@@ -3,7 +3,10 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LoaderCircle, LockKeyhole } from "lucide-react";
+import {
+  LoaderCircle,
+  LockKeyhole,
+} from "lucide-react";
 
 import { authClient } from "@/lib/auth-client";
 
@@ -28,6 +31,9 @@ const PRIVATE_ROUTES = [
   "/favorites",
   "/studios/edit",
 ];
+
+const RETURN_PATH_KEY =
+  "studiospace-pending-return-path";
 
 function isPrivateRoute(pathname: string) {
   return PRIVATE_ROUTES.some(
@@ -62,14 +68,18 @@ function CheckingAccount() {
       <div>
         <h1
           className="text-lg font-bold"
-          style={{ color: "var(--ss-ink)" }}
+          style={{
+            color: "var(--ss-ink)",
+          }}
         >
           Checking your account
         </h1>
 
         <p
           className="mt-2 text-sm"
-          style={{ color: "var(--ss-muted)" }}
+          style={{
+            color: "var(--ss-muted)",
+          }}
         >
           Verifying your StudioSpace session.
         </p>
@@ -87,12 +97,16 @@ function SignInRequired() {
     >
       <LockKeyhole
         size={32}
-        style={{ color: "var(--ss-accent)" }}
+        style={{
+          color: "var(--ss-accent)",
+        }}
       />
 
       <p
         className="text-sm font-medium"
-        style={{ color: "var(--ss-muted)" }}
+        style={{
+          color: "var(--ss-muted)",
+        }}
       >
         Sign in to continue to your requested page.
       </p>
@@ -118,6 +132,38 @@ export default function ProtectedRouteGate({
     Boolean(session?.user?.id);
 
   useEffect(() => {
+    try {
+      if (protectedPage) {
+        const destination =
+          window.location.pathname +
+          window.location.search +
+          window.location.hash;
+
+        // Remember the destination in this browser tab.
+        // This also covers older private pages which
+        // redirect directly to "/login" on API 401.
+        sessionStorage.setItem(
+          RETURN_PATH_KEY,
+          JSON.stringify({
+            path: destination,
+            timestamp: Date.now(),
+          })
+        );
+      } else if (
+        pathname !== "/login" &&
+        pathname !== "/register"
+      ) {
+        // Remove older destinations after navigating
+        // to a normal public page.
+        sessionStorage.removeItem(RETURN_PATH_KEY);
+      }
+    } catch {
+      // Storage may be unavailable in privacy modes.
+      // The explicit ?next= parameter still works.
+    }
+  }, [pathname, protectedPage]);
+
+  useEffect(() => {
     if (
       !protectedPage ||
       isPending ||
@@ -126,17 +172,15 @@ export default function ProtectedRouteGate({
       return;
     }
 
-    // Preserve the current private page, its query
-    // parameters and its hash, if any.
     const destination =
       window.location.pathname +
       window.location.search +
       window.location.hash;
 
-    const loginUrl =
-      `/login?next=${encodeURIComponent(destination)}`;
-
-    router.replace(loginUrl);
+    router.replace(
+      "/login?next=" +
+        encodeURIComponent(destination)
+    );
   }, [
     authenticated,
     isPending,
@@ -144,20 +188,14 @@ export default function ProtectedRouteGate({
     router,
   ]);
 
-  // Public routes do not need authentication.
   if (!protectedPage) {
     return <>{children}</>;
   }
 
-  // Wait for the existing session to be checked.
-  // This avoids redirecting a valid user to Login
-  // simply because a page has been refreshed.
   if (isPending) {
     return <CheckingAccount />;
   }
 
-  // Do not mount private page components while
-  // redirecting an unauthenticated visitor.
   if (!authenticated) {
     return <SignInRequired />;
   }

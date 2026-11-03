@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import StudioReviews from "@/components/studios/StudioReviews";
 import {
   ArrowLeft,
   ArrowRight,
@@ -287,7 +288,7 @@ export default function StudioDetails({
                     />
                     {studio.rating}
                     {typeof studio.reviewCount === "number" &&
-                      ` (${studio.reviewCount} demo reviews)`}
+                      ` (${studio.reviewCount} reviews)`}
                   </span>
                 )}
               </div>
@@ -412,17 +413,11 @@ export default function StudioDetails({
                   />
                 )}
 
-                {activeTab === "reviews" && (
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-950">
-                      Studio Reviews
-                    </h2>
-                    <p className="mt-4 text-slate-600">
-                      Verified customer reviews have not
-                      been added yet.
-                    </p>
-                  </div>
-                )}
+                
+{activeTab === "reviews" && (
+  <StudioReviews studioId={String(studio._id)} />
+)}
+
               </div>
             </div>
           </div>
