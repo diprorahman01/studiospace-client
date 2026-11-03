@@ -67,7 +67,7 @@ export default function HostSupport() {
 
             <h2
               id="host-support-heading"
-              className="mt-5 text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl"
+              className="ss-heading mt-5 text-white"
             >
               Host Guarantee &
 
