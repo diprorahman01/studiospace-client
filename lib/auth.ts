@@ -3,6 +3,7 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { nextCookies } from "better-auth/next-js";
+import { jwt } from "better-auth/plugins";
 import { authDB, mongoClient } from "@/lib/auth/mongodb";
 
 const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:3000";
@@ -33,7 +34,10 @@ export const auth = betterAuth({
       strategy: "jwt",
     },
   },
-  plugins: [nextCookies()],
+  plugins: [
+    jwt({ sessionCookieCache: true }),
+    nextCookies(),
+  ],
   logger: {
     level: process.env.NODE_ENV === "production" ? "error" : "warn",
   },

@@ -1,15 +1,12 @@
-
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-
 import ThemeProvider from "@/providers/ThemeProvider";
 import ThemeToggle from "@/components/layout/ThemeToggle";
 import BookingNotifications from "@/components/layout/BookingNotifications";
 import ProtectedRouteGate from "@/components/auth/ProtectedRouteGate";
-
 import { Toaster } from "sonner";
 
 import "./globals.css";
@@ -30,38 +27,33 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className="min-h-screen bg-[#f8f7fd] text-slate-900 antialiased"
+        className="min-h-screen antialiased"
+        style={{
+          backgroundColor: "var(--ss-bg)",
+          color: "var(--ss-ink)",
+        }}
       >
         <ThemeProvider>
           <Navbar />
-
           <main>
             <Suspense
               fallback={
                 <div
                   role="status"
-                  className="flex min-h-[60vh] items-center justify-center px-5 text-sm text-slate-500"
+                  className="flex min-h-[60vh] items-center justify-center px-5 text-sm"
+                  style={{ color: "var(--ss-muted)" }}
                 >
                   Loading StudioSpace...
                 </div>
               }
             >
-              <ProtectedRouteGate>
-                {children}
-              </ProtectedRouteGate>
+              <ProtectedRouteGate>{children}</ProtectedRouteGate>
             </Suspense>
           </main>
-
           <Footer />
-
           <ThemeToggle />
-
           <BookingNotifications />
-
-          <Toaster
-            richColors
-            position="top-right"
-          />
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>
