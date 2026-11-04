@@ -32,7 +32,7 @@ function publish(userId: string, ids: string[]) {
 }
 function loadFromMongo(userId: string) {
   if (requests.has(userId)) return requests.get(userId)!;
-  const request = fetch(`${API_URL}/api/favorites`, { credentials: "include", cache: "no-store" })
+  const request = fetch("/api/favorites", { credentials: "include", cache: "no-store" })
     .then(async (response) => {
       const body = await response.json();
       if (!response.ok || !body.success || !Array.isArray(body.data)) throw new Error(body.message || "Unable to load favorites.");

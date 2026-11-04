@@ -20,7 +20,7 @@ export default function BookingInvoicesPage() {
   useEffect(()=>{
     if(checkingSession||!userId)return;
     const controller=new AbortController();
-    fetch(`${API_URL}/api/bookings/my`,{credentials:"include",cache:"no-store",signal:controller.signal})
+    fetch("/api/bookings/my", {credentials:"include",cache:"no-store",signal:controller.signal})
       .then(async r=>{if(r.status===401)throw new Error("UNAUTHORIZED");const j:ApiResponse=await r.json();if(!r.ok||!j.success||!Array.isArray(j.data))throw new Error(j.message||"Unable to load bookings.");return j.data;})
       .then(rows=>{if(!controller.signal.aborted){setBookings(rows.filter(b=>b.status==="confirmed"||b.status==="completed"));setError("");}})
       .catch((err:unknown)=>{if(controller.signal.aborted)return;if(err instanceof Error&&err.message==="UNAUTHORIZED"){router.replace("/login");return;}setError(err instanceof Error?err.message:"Unable to load bookings.");})
@@ -30,7 +30,7 @@ export default function BookingInvoicesPage() {
   async function download(booking:Booking){
     if(downloading)return;setDownloading(booking._id);
     try{
-      const r=await fetch(`${API_URL}/api/invoices/${booking._id}`,{credentials:"include",cache:"no-store"});
+      const r=await fetch(`/api/invoices/${booking._id}`, {credentials:"include",cache:"no-store"});
       if(!r.ok){const j=await r.json().catch(()=>({message:"Could not download PDF."}));throw new Error(j.message||"Could not download PDF.");}
       const blob=await r.blob();if(!blob.type.includes("pdf"))throw new Error("Unexpected file response.");
       const url=URL.createObjectURL(blob);const anchor=document.createElement("a");anchor.href=url;anchor.download=`studiospace-booking-${booking._id}.pdf`;document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast.success("Booking PDF downloaded.");
