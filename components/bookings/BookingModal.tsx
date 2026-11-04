@@ -1,6 +1,6 @@
 
 "use client";
-
+import { createPortal } from "react-dom";
 import {
   useEffect,
   useMemo,
@@ -447,15 +447,17 @@ export default function BookingModal({
         <ArrowRight size={17} />
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              closeModal();
-            }
-          }}
-        >
+      {open &&
+  createPortal(
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/70 p-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          event.stopPropagation();
+          closeModal();
+        }
+      }}
+    >
           <div
             role="dialog"
             aria-modal="true"
@@ -873,7 +875,8 @@ export default function BookingModal({
               </button>
             </div>
           </div>
-        </div>
+                </div>,
+        document.body
       )}
     </>
   );

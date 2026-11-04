@@ -1,6 +1,6 @@
-
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 
 import StudioDetails from "@/components/studios/StudioDetails";
 import { getStudioById } from "@/lib/api/studios";
@@ -11,13 +11,15 @@ type StudioDetailsPageProps = {
   }>;
 };
 
-// This component handles URL-dependent data.
 async function StudioDetailsContent({
   params,
 }: StudioDetailsPageProps) {
+  // Render this route dynamically because booking
+  // and availability components use the current date.
+  await connection();
+
   const { id } = await params;
 
-  // MongoDB ObjectIds contain 24 hexadecimal characters.
   if (!/^[a-fA-F0-9]{24}$/.test(id)) {
     notFound();
   }
@@ -31,14 +33,18 @@ async function StudioDetailsContent({
   return <StudioDetails studio={studio} />;
 }
 
-// The page itself does not await URL parameters.
 export default function StudioDetailsPage({
   params,
 }: StudioDetailsPageProps) {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-[#f8f7fd]">
+        <main
+          className="min-h-screen"
+          style={{
+            backgroundColor: "var(--ss-bg)",
+          }}
+        >
           <div className="mx-auto max-w-7xl animate-pulse px-5 py-12">
             <div className="mb-8 h-5 w-40 rounded bg-slate-200" />
 
