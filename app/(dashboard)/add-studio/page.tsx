@@ -271,28 +271,30 @@ export default function AddStudioPage() {
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/studios`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          title: name,
-          category,
-          location: area,
-          fullAddress: exactLocation.fullAddress.trim(),
-          coordinates,
-          overview: description,
-          hourlyRate: rate,
-          securityDeposit: deposit,
-          maxCapacity: capacity,
-          image: mainImage,
-          images: [...new Set([mainImage, ...images])],
-          amenities,
-        }),
-      });
+      
+const response = await fetch("/api/studios", {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+  body: JSON.stringify({
+    title: name,
+    category,
+    location: area,
+    fullAddress: exactLocation.fullAddress.trim(),
+    coordinates,
+    overview: description,
+    hourlyRate: rate,
+    securityDeposit: deposit,
+    maxCapacity: capacity,
+    image: mainImage,
+    images: [...new Set([mainImage, ...images])],
+    amenities,
+  }),
+});
+
 
       const result: StudioResponse = await response.json();
 

@@ -327,23 +327,25 @@ export default function BookingModal({
     setSubmitting(true);
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/bookings`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            studioId: studio._id,
-            date,
-            startTime,
-            endTime,
-          }),
-        }
-      );
+      
+const response = await fetch(
+  "/api/bookings",
+  {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      studioId: studio._id,
+      date,
+      startTime,
+      endTime,
+    }),
+  }
+);
+
 
       const result: BookingResponse =
         await response.json();

@@ -433,16 +433,18 @@ export default function MyListingsPage() {
     setDeleting(true);
 
     try {
-      const response = await fetch(
-        `${API_URL}/api/studios/${selectedStudio._id}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-          },
-        }
-      );
+      
+const response = await fetch(
+  `/api/studios/${selectedStudio._id}`,
+  {
+    method: "DELETE",
+    credentials: "include",
+    headers: {
+      Accept: "application/json",
+    },
+  }
+);
+
 
       const result: StudioApiResponse =
         await response.json();
